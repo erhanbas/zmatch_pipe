@@ -16,16 +16,19 @@ if length(tLines)>1
     numCols = numel(strfind(tLines,delimiter)) + 1;
     fclose(fid);
 else
-    error('EMPTY DESCRIPTOR FILE !!')
+    des = [];
+    return
+    % error('EMPTY DESCRIPTOR FILE !!')
 end
 format = repmat('%f ',1,numCols);format(end)=[];
 %% if there are multi-channel descriptor, decide what to do
 %% TODO
 clear des
-thesechannels = '2';
+thesechannels = desc_ch;
 
-for idx=thesechannels
-    ii = str2double(idx);
+for idx_=1:length(thesechannels)
+    idx = thesechannels{idx_};
+    ii = str2double(idx)+1;
     myfid1 = fopen(fullfile(inputfolder,myfiles(ii).name));
     data = textscan(myfid1,format); % round locations, there is a bug in estimation that shifts z-locations 0.5 pix. rounding results in better MSE
     fclose(myfid1);

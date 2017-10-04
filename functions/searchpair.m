@@ -25,9 +25,8 @@ R = zeros(1,10);
 clear nonuniformity
 
 [X_,Y_,mout_,neigs_,rate_] = deal([]);
-while ~flag & iter<250% run a search
+while ~flag & iter<50% run a search
     iter = iter + 1;
-    [iter R(end)]
     descadj = descadjori + ones(size(descadjori,1),1)*pixshift;
     
     nbound = [0 0];
@@ -92,6 +91,8 @@ while ~flag & iter<250% run a search
         end
     end
 end
+[iter R(end)]
+
 %%
 
 end
@@ -178,7 +179,9 @@ y_inline = y(prob_inliers,:);
 [~,im] = max(density,[],2);
 sgn = -2*((max(im)==im(end) | max(im)==im(1))-.5);
 pinit = [median(y) sgn*1e-5 median(x)];
+warning off
 out = nlinfit(y_inline, x_inline, model, pinit,optimopts);
+warning on
 % outlier rejection based on parametric model
 xest = feval(model,out,y);
 outliers = abs(x-xest)>2;
