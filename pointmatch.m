@@ -14,9 +14,9 @@ if nargin<1
     tile2 = fullfile(classifierfolder,sample,'/classifier_output',tileid2);
     acqusitionfolder1 = fullfile(rawfolder,sample,'Tiling',tileid1);
     acqusitionfolder2 = fullfile(rawfolder,sample,'Tiling',tileid2);
-    [neighbors] = buildNeighbor(scopeloc.gridix(:,1:3));
-    outfile = fullfile(classifierfolder,sample,'/classifier_output',tileid1)
-    imsize_um = [386.67 423.72 250]
+%     [neighbors] = buildNeighbor(scopeloc.gridix(:,1:3));
+%     outfile = fullfile(classifierfolder,sample,'/classifier_output',tileid1)
+%     imsize_um = [386.67 423.72 250]
 end
 
 if nargin<5
@@ -83,17 +83,15 @@ else
         error('not 6 direction neighbor')
     end
     [X_,Y_,out,rate_,pixshiftout,nonuniformity] = searchpair(desc1(:,1:3),desc2(:,1:3),pixshift,iadj,dims,matchparams);
-    if ~isempty(X_)
-        X_ = correctTiles(X_,dims);
-        Y_ = correctTiles(Y_,dims);
-    else
+    if isempty(X_)
         matchparams_ = matchparams;
         matchparams_.opt.outliers = .5;
         [X_,Y_,out,rate_,pixshiftout,nonuniformity] = searchpair(desc1(:,1:3),desc2(:,1:3),pixshift,iadj,dims,matchparams_);
-        if ~isempty(X_)
-            X_ = correctTiles(X_,dims);
-            Y_ = correctTiles(Y_,dims);
-        end
+    end
+    
+    if ~isempty(X_)
+        X_ = correctTiles(X_,dims);
+        Y_ = correctTiles(Y_,dims);
     end
     uni = mean(nonuniformity)<=.5;
 end
