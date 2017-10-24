@@ -141,7 +141,9 @@ if rate < .5 % dont need to continue
     return
 end
 %%
-Y_(:,iadj) = Y_(:,iadj)- pixshift(iadj);% move it back to original location after CDP
+% Y_(:,iadj) = Y_(:,iadj)- pixshift(iadj);% move it back to original location after CDP
+Y_ = Y_- ones(size(Y_,1),1)*pixshift;% move it back to original location after CDP
+
 %%
 % displacement field between follows a field curve on x&y due to
 % optics and deformation curve due to tissue and cut force on z

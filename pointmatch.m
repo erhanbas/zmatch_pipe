@@ -1,4 +1,4 @@
-function varargout = pointmatch(tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixshift,exitcode)
+function varargout = pointmatch(tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixshift,ch,exitcode)
 %%
 if ~isdeployed
     addpath(genpath('./functions'))
@@ -14,31 +14,37 @@ if nargin<1
     tile2 = fullfile(classifierfolder,sample,'/classifier_output',tileid2);
     acqusitionfolder1 = fullfile(rawfolder,sample,'Tiling',tileid1);
     acqusitionfolder2 = fullfile(rawfolder,sample,'Tiling',tileid2);
-%     [neighbors] = buildNeighbor(scopeloc.gridix(:,1:3));
-%     outfile = fullfile(classifierfolder,sample,'/classifier_output',tileid1)
-%     imsize_um = [386.67 423.72 250]
 end
 
 if nargin<5
     outfold = tile1;
     pixshift = '[0 0 0]'
+    ch='1';
     exitcode = 0;
 elseif nargin < 6
     pixshift = '[0 0 0]'
+    ch='1';
     exitcode = 0;
 elseif nargin <7
+    ch='1';
+    exitcode = 0;
+elseif nargin <8
     exitcode = 0;
 end
 if ischar(pixshift)
     pixshift = eval(pixshift); % pass initialization
+end
+
+if length(ch)>1
+    ch_desc={ch(1),ch(2)};
+else
+    ch_desc={ch};
 end
 varargout{1} = exitcode;
 dims = [1024,1536,251];
 projectionThr = 5;
 debug = 0;
 
-%%
-%%
 tag = 'XYZ';
 scopefile1 = readScopeFile(acqusitionfolder1);
 scopefile2 = readScopeFile(acqusitionfolder2);
@@ -50,16 +56,11 @@ stgshift = 1000*([scopefile2.x_mm scopefile2.y_mm scopefile2.z_mm]-[scopefile1.x
 if all(pixshift==0)
     pixshift = round(stgshift.*(dims-1)./imsize_um);
 end
-%%
-% check if valid output exists
-if exist(fullfile(outfold,sprintf('match-%s-1.mat',tag(iadj))),'file')
-    return
-end
 
 %%
 % read descs
-desc1 = readDesc(tile1,{'0'});
-desc2 = readDesc(tile2,{'0'});
+desc1 = readDesc(tile1,ch_desc);
+desc2 = readDesc(tile2,ch_desc);
 
 % check if input exists
 if isempty(desc1) | isempty(desc2)
@@ -78,10 +79,10 @@ else
     % pixshift(iadj) = pixshift(iadj)+expensionshift(iadj); % initialize with a relative shift to improve CDP
     clc
     matchparams = modelParams(projectionThr,debug);
-    %%
     if length(iadj)~=1 | max(iadj)>3
         error('not 6 direction neighbor')
     end
+    %% MATCHING
     [X_,Y_,out,rate_,pixshiftout,nonuniformity] = searchpair(desc1(:,1:3),desc2(:,1:3),pixshift,iadj,dims,matchparams);
     if isempty(X_)
         matchparams_ = matchparams;
@@ -105,9 +106,17 @@ paireddescriptor.uni = uni;
 if isempty(outfold)
     varargout{2} = paireddescriptor;
 else
-    outputfile = fullfile(outfold,sprintf('match-%s-%d.mat',tag(iadj),rate_>0)); % append 1 if match found
-    save(outputfile,'paireddescriptor','scopefile1','scopefile2')
-    unix(sprintf('chmod g+rxw %s',outputfile))
+    % if isempty(rate_); val=0;elseif rate_<1;val=0;else;val=1;end
+    outputfile = fullfile(outfold,sprintf('match-%s.mat',tag(iadj))); % append 1 if match found
+    %check if file exist
+    if exist(outputfile,'file')
+        % if main match exists, crete a versioned one
+        outputfile1 = fullfile(outfold,sprintf('match-%s-1.mat',tag(iadj))); % append 1 if match found
+        save(outputfile1,'paireddescriptor','scopefile1','scopefile2')
+    else
+        save(outputfile,'paireddescriptor','scopefile1','scopefile2')
+    end
+    unix(sprintf('chmod g+rw %s',outputfile))
 end
 end
 
