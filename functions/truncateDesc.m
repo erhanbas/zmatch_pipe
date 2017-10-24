@@ -1,6 +1,6 @@
 function desc = truncateDesc(desc,maxnumofdesc,thr)
 if nargin<2
-    maxnumofdesc = 3e3;
+    maxnumofdesc = 10e3;
     thr = 0.1;
 elseif nargin<3
     thr = 0.1;

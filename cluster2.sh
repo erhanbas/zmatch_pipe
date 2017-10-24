@@ -21,7 +21,7 @@ fi
 
 mkdir $MCR_CACHE_ROOT
 
-$1 $2 $3 $4 $5 $6 $7 $8
+$1 $2 $3 $4 $5 $6 $7
 
 #foo=$1
 #chmod -R g+w ${foo:0:(${#foo}-4)}"_out"

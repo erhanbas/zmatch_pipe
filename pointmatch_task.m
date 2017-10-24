@@ -1,4 +1,4 @@
-function varargout = pointmatch_task(filename,from,to,numcores,ch,exitcode)
+function varargout = pointmatch_task(filename,from,to,numcores,exitcode)
 %% deploys pointmatch function on array task
 if nargin==0
     brain = '2017-09-25';tag='';
@@ -19,7 +19,7 @@ varargout{1} = exitcode;
 
 % first get file list
 fid = fopen(filename);
-targetlist = textscan(fid,'%s %s %s %s %f %f %f');
+targetlist = textscan(fid,'%s %s %s %s %s %f %f %f %s %f');
 fclose(fid);
 
 parpool(numcores)
@@ -28,9 +28,12 @@ parfor idx=from:to
     tile2 = targetlist{2}{idx};
     acqusitionfolder1 = targetlist{3}{idx};
     acqusitionfolder2 = targetlist{4}{idx};
-    pixshift = [targetlist{5}(idx) targetlist{6}(idx) targetlist{7}(idx)];
-    outfold =tile1;
-    pointmatch(tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixshift,ch,exitcode)
+    outfold =targetlist{5}{idx};
+    pixshift = [targetlist{6}(idx) targetlist{7}(idx) targetlist{8}(idx)];
+    ch = targetlist{9}{idx};
+    maxnumofdesc = targetlist{10}(idx);
+   
+    pointmatch(tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixshift,ch,maxnumofdesc,exitcode)
 end
 delete(gcp('nocreate'))
 
@@ -76,7 +79,7 @@ directionMap = containers.Map({'-X','-Y','X','Y','-Z','Z'},[ 2, 3, 4, 5, 6, 7]);
 %%
 directions = 'Z';
 ch='0';
-
+maxnumofdesc = 10e3;
 if 0
     pixinit = zeros(size(neighbors,1),3);
     nummatches = zeros(size(neighbors,1),1);
@@ -89,52 +92,56 @@ else
 end
 
 %%
+
 % generate a txt file with all tile pairs to be matched with optional shift
 % values
 badtiles = nummatches<numthr & ~isnan(neighbors(:,directionMap(directions)));
 % (filename,from,to,numcores,exitcode)
 outlistfile = fullfile(pwd,'shfiles',sprintf('outlistfile_%s_%s.txt',brain,date));
-fid = fopen(outlistfile,'w');
+if ~runlocal;fid = fopen(outlistfile,'w');end
 for ii = find(badtiles(:)')
     tile1 = fullfile(descriptorfolder,scopeloc.relativepaths{ii});
     acqusitionfolder1 = fileparts(scopeloc.filepath{ii});
     iineig = neighbors(ii,directionMap(directions));
     tile2 = fullfile(descriptorfolder,scopeloc.relativepaths{iineig});
     acqusitionfolder2 = fileparts(scopeloc.filepath{iineig});
-    fprintf(fid,'%s %s %s %s %d %d %d\n',tile1,tile2,acqusitionfolder1,acqusitionfolder2,pixinit(ii,:));
-end
-fclose(fid);
-
-%% task script (filename,from,to,numcores,exitcode)
-%find number of random characters to choose from and %specify length of random string to generate
-s = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';numRands = length(s);sLength = 10;
-%-o /dev/null
-esttime = 30*60;
-numcores = 16;
-exitcode = 0;
-tottasks = sum(badtiles(:));
-intervals = round(linspace(0,tottasks,round(tottasks/numcores)));
-
-mkdir(fullfile(pwd,'shfiles'))
-myfile = fullfile(pwd,'shfiles',sprintf('featmatchrun_%s_%s.sh',brain,date))
-if ~runlocal; fid = fopen(myfile,'w'); end
-for ii = 1:length(intervals)-1
-    from = intervals(ii)+1;
-    to = intervals(ii+1);
-    cmd = sprintf('''%s %s %s %s %d %d %d %s %d''',taskwrapper,taskscript,matlab_cluster_path,outlistfile,from,to,numcores,ch,exitcode);
-
-    %generate random string
-    randString = s( ceil(rand(1,sLength)*numRands) );
-    name = sprintf('zm_%05d-%s',ii,randString);
-    mysub = sprintf('bsub -J %s -n%d -R"affinity[core(1)]" -We %d -o /dev/null %s\n',name,numcores,esttime/60,cmd);
-
+    outfold =tile1;
     if runlocal
-        pointmatch_task(outlistfile,from,to,numcores,ch,exitcode)
+        pointmatch(tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixinit(ii,:),ch,maxnumofdesc,0)
     else
-        fwrite(fid,mysub);
+        fprintf(fid,'%s %s %s %s %s %f %f %f %s %f\n',tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixinit(ii,:),ch,maxnumofdesc);
     end
 end
-if ~runlocal; fclose(fid); unix(sprintf('chmod +x %s',myfile)); disp(myfile);end
+fclose(fid);
+%%
+
+if ~runlocal
+    %% task script (filename,from,to,numcores,exitcode)
+    %find number of random characters to choose from and %specify length of random string to generate
+    s = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';numRands = length(s);sLength = 10;
+    %-o /dev/null
+    esttime = 30*60;
+    numcores = 16;
+    exitcode = 0;
+    tottasks = sum(badtiles(:));
+    intervals = round(linspace(0,tottasks,round(tottasks/numcores)));
+    
+    mkdir(fullfile(pwd,'shfiles'))
+    myfile = fullfile(pwd,'shfiles',sprintf('featmatchrun_%s_%s.sh',brain,date))
+    if ~runlocal; fid = fopen(myfile,'w'); end
+    for ii = 1:length(intervals)-1
+        from = intervals(ii)+1;
+        to = intervals(ii+1);
+        cmd = sprintf('''%s %s %s %s %d %d %d %d''',taskwrapper,taskscript,matlab_cluster_path,outlistfile,from,to,numcores,exitcode);
+        
+        %generate random string
+        randString = s( ceil(rand(1,sLength)*numRands) );
+        name = sprintf('zm_%05d-%s',ii,randString);
+        mysub = sprintf('bsub -J %s -n%d -R"affinity[core(1)]" -We %d -o /dev/null %s\n',name,numcores,esttime/60,cmd);
+        fwrite(fid,mysub);
+    end
+    if ~runlocal; fclose(fid); unix(sprintf('chmod +x %s',myfile)); disp(myfile);end
+end
 end
 
 

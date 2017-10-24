@@ -1,4 +1,4 @@
-function varargout = pointmatch(tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixshift,ch,exitcode)
+function varargout = pointmatch(tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixshift,ch,maxnumofdesc,exitcode)
 %%
 if ~isdeployed
     addpath(genpath('./functions'))
@@ -20,15 +20,21 @@ if nargin<5
     outfold = tile1;
     pixshift = '[0 0 0]'
     ch='1';
+    maxnumofdesc=1e3;
     exitcode = 0;
 elseif nargin < 6
     pixshift = '[0 0 0]'
     ch='1';
+    maxnumofdesc=1e3;
     exitcode = 0;
 elseif nargin <7
     ch='1';
+    maxnumofdesc=1e3;
     exitcode = 0;
 elseif nargin <8
+    maxnumofdesc=1e3;
+    exitcode = 0;
+elseif nargin <9
     exitcode = 0;
 end
 if ischar(pixshift)
@@ -73,8 +79,8 @@ else
     desc1 = correctTiles(desc1,dims);
     desc2 = correctTiles(desc2,dims);
     % truncate descriptors
-    desc1 = truncateDesc(desc1);
-    desc2 = truncateDesc(desc2);
+    desc1 = truncateDesc(desc1,maxnumofdesc);
+    desc2 = truncateDesc(desc2,maxnumofdesc);
     % idaj : 1=right(+x), 2=bottom(+y), 3=below(+z)
     % pixshift(iadj) = pixshift(iadj)+expensionshift(iadj); % initialize with a relative shift to improve CDP
     clc
@@ -96,7 +102,6 @@ else
     end
     uni = mean(nonuniformity)<=.5;
 end
-
 paireddescriptor.matchrate = rate_;
 paireddescriptor.X = X_;
 paireddescriptor.Y = Y_;
@@ -113,10 +118,11 @@ else
         % if main match exists, crete a versioned one
         outputfile1 = fullfile(outfold,sprintf('match-%s-1.mat',tag(iadj))); % append 1 if match found
         save(outputfile1,'paireddescriptor','scopefile1','scopefile2')
+        unix(sprintf('chmod g+rw %s',outputfile1))
     else
         save(outputfile,'paireddescriptor','scopefile1','scopefile2')
+        unix(sprintf('chmod g+rw %s',outputfile))
     end
-    unix(sprintf('chmod g+rw %s',outputfile))
 end
 end
 
