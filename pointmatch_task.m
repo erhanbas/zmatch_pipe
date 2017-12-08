@@ -1,12 +1,19 @@
 function varargout = pointmatch_task(filename,from,to,numcores,exitcode)
 %% deploys pointmatch function on array task
 if nargin==0
-    brain = '2017-09-25';tag='';
+    brain = '2017-10-31';tag='';
     runlocal = 0;
     deployment(brain,runlocal);
 elseif nargin==1
+    disp('Creating *sh file for cluster. File will be here (might take upto 5min to create the file):')
     brain = filename;
     runlocal = 0;
+    deployment(brain,runlocal);
+    return
+elseif nargin==2 % run on local machine
+    disp('RUNNING ON LOCAL MACHINE< MIGHT TAKE A WHILE')
+    brain = filename;
+    runlocal = from;
     deployment(brain,runlocal);
     return
 end
@@ -78,28 +85,32 @@ end
 directionMap = containers.Map({'-X','-Y','X','Y','-Z','Z'},[ 2, 3, 4, 5, 6, 7]);
 %%
 directions = 'Z';
-ch='0';
+ch='1';
 maxnumofdesc = 10e3;
+checkversion=1;
 if 0
     pixinit = zeros(size(neighbors,1),3);
     nummatches = zeros(size(neighbors,1),1);
 else
     % load finished tile matches. find badly matched or missing tile pairs
-    featmap = loadMatchedFeatures(descriptorfolder,directions);
+    [regpts,featmap] = loadMatchedFeatures(scopeloc,descriptorfolder,directions,checkversion);
     % initalize missing tiles based on knn
     numthr = 50;
     [pixinit,nummatches] = initTiles(featmap,directions,scopeloc,numthr);
+    sum(nummatches)
 end
+badtiles = nummatches<numthr & ~isnan(neighbors(:,directionMap(directions)));
 
 %%
-
 % generate a txt file with all tile pairs to be matched with optional shift
 % values
-badtiles = nummatches<numthr & ~isnan(neighbors(:,directionMap(directions)));
 % (filename,from,to,numcores,exitcode)
 outlistfile = fullfile(pwd,'shfiles',sprintf('outlistfile_%s_%s.txt',brain,date));
 if ~runlocal;fid = fopen(outlistfile,'w');end
-for ii = find(badtiles(:)')
+parfor ii = 1:length(badtiles)
+    if ~badtiles(ii)
+        continue
+    end
     tile1 = fullfile(descriptorfolder,scopeloc.relativepaths{ii});
     acqusitionfolder1 = fileparts(scopeloc.filepath{ii});
     iineig = neighbors(ii,directionMap(directions));
@@ -107,12 +118,12 @@ for ii = find(badtiles(:)')
     acqusitionfolder2 = fileparts(scopeloc.filepath{iineig});
     outfold =tile1;
     if runlocal
-        pointmatch(tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixinit(ii,:),ch,maxnumofdesc,0)
+        pointmatch(tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixinit(ii,:),ch,maxnumofdesc,0);
     else
         fprintf(fid,'%s %s %s %s %s %f %f %f %s %f\n',tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixinit(ii,:),ch,maxnumofdesc);
     end
 end
-fclose(fid);
+if ~runlocal;fclose(fid);end
 %%
 
 if ~runlocal

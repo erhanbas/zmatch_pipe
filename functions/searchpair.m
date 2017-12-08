@@ -91,7 +91,7 @@ while ~flag & iter<50% run a search
         end
     end
 end
-[iter R(end)]
+% [iter R(end)]
 
 %%
 

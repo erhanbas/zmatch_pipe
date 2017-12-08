@@ -18,12 +18,12 @@ end
 
 if nargin<5
     outfold = tile1;
-    pixshift = '[0 0 0]'
+    pixshift = '[0 0 0]';
     ch='1';
     maxnumofdesc=1e3;
     exitcode = 0;
 elseif nargin < 6
-    pixshift = '[0 0 0]'
+    pixshift = '[0 0 0]';
     ch='1';
     maxnumofdesc=1e3;
     exitcode = 0;
@@ -83,7 +83,6 @@ else
     desc2 = truncateDesc(desc2,maxnumofdesc);
     % idaj : 1=right(+x), 2=bottom(+y), 3=below(+z)
     % pixshift(iadj) = pixshift(iadj)+expensionshift(iadj); % initialize with a relative shift to improve CDP
-    clc
     matchparams = modelParams(projectionThr,debug);
     if length(iadj)~=1 | max(iadj)>3
         error('not 6 direction neighbor')
@@ -106,7 +105,17 @@ paireddescriptor.matchrate = rate_;
 paireddescriptor.X = X_;
 paireddescriptor.Y = Y_;
 paireddescriptor.uni = uni;
-
+if nargin>4
+    if ~isempty(X_)
+        %x:R, y:G, z:B
+        col = median(Y_-X_,3)+128;
+        col = max(min(col,255),0);
+        outpng = zeros(105,89,3);
+        outpng(:,:,1) = col(1);
+        outpng(:,:,2) = col(2);
+        outpng(:,:,3) = col(3);
+        imwrite(outpng,fullfile(outfold,'Thumbs-match.png'))
+    end
 %%
 if isempty(outfold)
     varargout{2} = paireddescriptor;
@@ -118,10 +127,10 @@ else
         % if main match exists, crete a versioned one
         outputfile1 = fullfile(outfold,sprintf('match-%s-1.mat',tag(iadj))); % append 1 if match found
         save(outputfile1,'paireddescriptor','scopefile1','scopefile2')
-        unix(sprintf('chmod g+rw %s',outputfile1))
+        unix(sprintf('chmod g+rw %s',outputfile1));
     else
         save(outputfile,'paireddescriptor','scopefile1','scopefile2')
-        unix(sprintf('chmod g+rw %s',outputfile))
+        unix(sprintf('chmod g+rw %s',outputfile));
     end
 end
 end
