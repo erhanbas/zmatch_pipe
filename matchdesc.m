@@ -50,7 +50,7 @@ function deployment(brain,tag,runlocal)
 compiledfunc = '/groups/mousebrainmicro/home/base/CODE/MATLAB/compiledfunctions/matchdesc/matchdesc'
 outfold = fileparts(compiledfunc);
 mkdir(outfold)
-if 1
+if 0
 %     mcc -m -v -R -singleCompThread /groups/mousebrainmicro/home/base/CODE/MATLAB/pipeline/zmatch_pipe/matchdesc.m -d /groups/mousebrainmicro/home/base/CODE/MATLAB/compiledfunctions/matchdesc -a /groups/mousebrainmicro/home/base/CODE/MATLAB/pipeline/zmatch_pipe/functions
 %     mcc -m -v -R -I /groups/mousebrainmicro/home/base/CODE/MATLAB/pipeline/zmatch_pipe/matchdesc.m -d /groups/mousebrainmicro/home/base/CODE/MATLAB/compiledfunctions/matchdesc_mult -a /groups/mousebrainmicro/home/base/CODE/MATLAB/pipeline/zmatch_pipe/functions
     unix(sprintf('mcc -m -v -R -singleCompThread /groups/mousebrainmicro/home/base/CODE/MATLAB/pipeline/zmatch_pipe/matchdesc.m -d %s -a /groups/mousebrainmicro/home/base/CODE/MATLAB/pipeline/zmatch_pipe/functions',outfold))

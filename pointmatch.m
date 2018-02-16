@@ -1,5 +1,15 @@
 function varargout = pointmatch(tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixshift,ch,maxnumofdesc,exitcode)
 %%
+compiledfunc = '/groups/mousebrainmicro/home/base/CODE/MATLAB/compiledfunctions/pointmatch/pointmatch'
+if ~exist(fileparts(compiledfunc),'dir')
+    mkdir(fileparts(compiledfunc));
+    mfilename_ = mfilename('fullpath');
+    % unix(sprintf('mcc -m -v -R -singleCompThread %s -d %s -a %s',mfilename_,fileparts(compiledfunc),fullfile(fileparts(mfilename_),'functions')))
+    unix(sprintf('mcc -m -v -R %s -d %s -a %s',mfilename_,fileparts(compiledfunc),fullfile(fileparts(mfilename_),'functions')))
+    unix(sprintf('chmod g+x %s',compiledfunc))
+    %,fullfile(fileparts(mfilename_),'common')
+end
+
 if ~isdeployed
     addpath(genpath('./functions'))
 end
@@ -37,8 +47,15 @@ elseif nargin <8
 elseif nargin <9
     exitcode = 0;
 end
+
 if ischar(pixshift)
     pixshift = eval(pixshift); % pass initialization
+end
+if ischar(maxnumofdesc)
+    maxnumofdesc=str2double(maxnumofdesc);
+end
+if ischar(exitcode)
+    exitcode=str2double(exitcode);
 end
 
 if length(ch)>1
@@ -108,13 +125,13 @@ paireddescriptor.uni = uni;
 if nargin>4
     if ~isempty(X_)
         %x:R, y:G, z:B
-        col = median(Y_-X_,3)+128;
+        col = median(Y_-X_,1)+128;
         col = max(min(col,255),0);
         outpng = zeros(105,89,3);
         outpng(:,:,1) = col(1);
         outpng(:,:,2) = col(2);
         outpng(:,:,3) = col(3);
-        imwrite(outpng,fullfile(outfold,'Thumbs-match.png'))
+        imwrite(outpng,fullfile(outfold,'Thumbs.png'))
     end
 %%
 if isempty(outfold)
