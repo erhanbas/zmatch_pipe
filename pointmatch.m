@@ -16,12 +16,12 @@ end
 
 if nargin<1
     rawfolder = '/groups/mousebrainmicro/mousebrainmicro/data/'
-    classifierfolder = '/nrs/mouselight/cluster/classifierOutputs/'
-    sample = '2017-08-28'
-    tileid1 = '/2017-08-31/00/00740'
-    tileid2 = '/2017-08-31/00/00986'
-    tile1 = fullfile(classifierfolder,sample,'/classifier_output',tileid1);
-    tile2 = fullfile(classifierfolder,sample,'/classifier_output',tileid2);
+    classifierfolder = '/nrs/mouselight/pipeline_output/'
+    sample = '2018-08-15-skeltest'
+    tileid1 = '/2018-08-18/00/00152'
+    tileid2 = '/2018-08-18/00/00442'
+    tile1 = fullfile(classifierfolder,sample,'/stage_2_descriptor_output',tileid1);
+    tile2 = fullfile(classifierfolder,sample,'/stage_2_descriptor_output',tileid2);
     acqusitionfolder1 = fullfile(rawfolder,sample,'Tiling',tileid1);
     acqusitionfolder2 = fullfile(rawfolder,sample,'Tiling',tileid2);
 end
