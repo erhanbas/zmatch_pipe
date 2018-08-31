@@ -1,11 +1,11 @@
 function varargout = pointmatch(tile1,tile2,acqusitionfolder1,acqusitionfolder2,outfold,pixshift,ch,maxnumofdesc,exitcode)
 %%
-compiledfunc = '/groups/mousebrainmicro/home/base/CODE/MATLAB/compiledfunctions/pointmatch/pointmatch'
+compiledfunc = '/groups/mousebrainmicro/home/base/CODE/MATLAB/compiledfunctions/pointmatch/pointmatch';
 if ~exist(fileparts(compiledfunc),'dir')
     mkdir(fileparts(compiledfunc));
     mfilename_ = mfilename('fullpath');
     % unix(sprintf('mcc -m -v -R -singleCompThread %s -d %s -a %s',mfilename_,fileparts(compiledfunc),fullfile(fileparts(mfilename_),'functions')))
-    unix(sprintf('mcc -m -v -R %s -d %s -a %s',mfilename_,fileparts(compiledfunc),fullfile(fileparts(mfilename_),'functions')))
+    unix(sprintf('mcc -m -v %s -d %s -a %s',mfilename_,fileparts(compiledfunc),fullfile(fileparts(mfilename_),'functions')))
     unix(sprintf('chmod g+x %s',compiledfunc))
     %,fullfile(fileparts(mfilename_),'common')
 end
@@ -84,7 +84,6 @@ end
 % read descs
 desc1 = readDesc(tile1,ch_desc);
 desc2 = readDesc(tile2,ch_desc);
-
 % check if input exists
 if isempty(desc1) | isempty(desc2)
     rate_ = 0;
@@ -98,25 +97,32 @@ else
     % truncate descriptors
     desc1 = truncateDesc(desc1,maxnumofdesc);
     desc2 = truncateDesc(desc2,maxnumofdesc);
-    % idaj : 1=right(+x), 2=bottom(+y), 3=below(+z)
-    % pixshift(iadj) = pixshift(iadj)+expensionshift(iadj); % initialize with a relative shift to improve CDP
-    matchparams = modelParams(projectionThr,debug);
-    if length(iadj)~=1 | max(iadj)>3
-        error('not 6 direction neighbor')
+    if isempty(desc1) | isempty(desc2)
+        rate_ = 0;
+        X_ = [];
+        Y_ = [];
+        uni = 0;
+    else
+        % idaj : 1=right(+x), 2=bottom(+y), 3=below(+z)
+        % pixshift(iadj) = pixshift(iadj)+expensionshift(iadj); % initialize with a relative shift to improve CDP
+        matchparams = modelParams(projectionThr,debug);
+        if length(iadj)~=1 | max(iadj)>3
+            error('not 6 direction neighbor')
+        end
+        %% MATCHING
+        [X_,Y_,rate_,pixshiftout,nonuniformity] = searchpair(desc1,desc2,pixshift,iadj,dims,matchparams);
+        if isempty(X_)
+            matchparams_ = matchparams;
+            matchparams_.opt.outliers = .5;
+            [X_,Y_,rate_,pixshiftout,nonuniformity] = searchpair_relaxed(desc1(:,1:3),desc2(:,1:3),pixshift,iadj,dims,matchparams_);
+        end
+        
+        if ~isempty(X_)
+            X_ = correctTiles(X_,dims);
+            Y_ = correctTiles(Y_,dims);
+        end
+        uni = mean(nonuniformity)<=.5;
     end
-    %% MATCHING
-    [X_,Y_,out,rate_,pixshiftout,nonuniformity] = searchpair(desc1(:,1:3),desc2(:,1:3),pixshift,iadj,dims,matchparams);
-    if isempty(X_)
-        matchparams_ = matchparams;
-        matchparams_.opt.outliers = .5;
-        [X_,Y_,out,rate_,pixshiftout,nonuniformity] = searchpair(desc1(:,1:3),desc2(:,1:3),pixshift,iadj,dims,matchparams_);
-    end
-    
-    if ~isempty(X_)
-        X_ = correctTiles(X_,dims);
-        Y_ = correctTiles(Y_,dims);
-    end
-    uni = mean(nonuniformity)<=.5;
 end
 paireddescriptor.matchrate = rate_;
 paireddescriptor.X = X_;
@@ -131,25 +137,30 @@ if nargin>4
         outpng(:,:,1) = col(1);
         outpng(:,:,2) = col(2);
         outpng(:,:,3) = col(3);
+        if exist(fullfile(outfold,'Thumbs.png'),'file')
+            % -f to prevent prompts
+            unix(sprintf('rm -f %s',fullfile(outfold,'Thumbs.png')));
+        end
         imwrite(outpng,fullfile(outfold,'Thumbs.png'))
+        unix(sprintf('chmod g+rw %s',fullfile(outfold,'Thumbs.png')));
     end
-%%
-if isempty(outfold)
-    varargout{2} = paireddescriptor;
-else
-    % if isempty(rate_); val=0;elseif rate_<1;val=0;else;val=1;end
-    outputfile = fullfile(outfold,sprintf('match-%s.mat',tag(iadj))); % append 1 if match found
-    %check if file exist
-    if exist(outputfile,'file')
-        % if main match exists, crete a versioned one
-        outputfile1 = fullfile(outfold,sprintf('match-%s-1.mat',tag(iadj))); % append 1 if match found
-        save(outputfile1,'paireddescriptor','scopefile1','scopefile2')
-        unix(sprintf('chmod g+rw %s',outputfile1));
+    %%
+    if isempty(outfold)
+        varargout{2} = paireddescriptor;
     else
-        save(outputfile,'paireddescriptor','scopefile1','scopefile2')
-        unix(sprintf('chmod g+rw %s',outputfile));
+        % if isempty(rate_); val=0;elseif rate_<1;val=0;else;val=1;end
+        outputfile = fullfile(outfold,sprintf('match-%s.mat',tag(iadj))); % append 1 if match found
+        %check if file exist
+        if exist(outputfile,'file')
+            % if main match exists, crete a versioned one
+            outputfile1 = fullfile(outfold,sprintf('match-%s-1.mat',tag(iadj))); % append 1 if match found
+            save(outputfile1,'paireddescriptor','scopefile1','scopefile2')
+            unix(sprintf('chmod g+rw %s',outputfile1));
+        else
+            save(outputfile,'paireddescriptor','scopefile1','scopefile2')
+            unix(sprintf('chmod g+rw %s',outputfile));
+        end
     end
-end
 end
 
 
