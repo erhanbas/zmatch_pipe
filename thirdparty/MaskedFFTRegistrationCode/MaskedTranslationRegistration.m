@@ -1,4 +1,4 @@
-function [transform,maxC,C,numberOfOverlapMaskedPixels] = MaskedTranslationRegistration(fixedImage,movingImage,fixedMask,movingMask,search_range, overlapRatio)
+function [transform, maxC, C_valid] = MaskedTranslationRegistration(fixedImage,movingImage,fixedMask,movingMask,search_range, overlapRatio)
 
 % [transform,maxC,C,numberOfOverlapMaskedPixels] =
 % MaskedTranslationRegistration(fixedImage,movingImage,fixedMask,movingMask,overlapRatio) 
@@ -32,7 +32,7 @@ function [transform,maxC,C,numberOfOverlapMaskedPixels] = MaskedTranslationRegis
 % 2. Accelerate the computation with nearly no lost in accuracy in the
 % computation of the correlation array. 
 if nargin < 5
-    search_range = size(movingImage); % Search the translation only in +- search_range 
+    search_range = size(movingImage) - 1; % Search the translation only in +- search_range 
     overlapRatio = 3/10;
 elseif nargin < 6
     overlapRatio = 3/10;
@@ -40,7 +40,8 @@ end
 [C,numberOfOverlapMaskedPixels] = normxcorrn_masked(fixedImage,movingImage,fixedMask,movingMask, search_range);
 % fixed_image_size = size(fixedImage);
 moving_image_size = size(movingImage);
-valid_min = moving_image_size - search_range + 1;
+valid_min = moving_image_size - search_range;
+valid_max = min(size(C), moving_image_size + search_range);
 % imageSize = size(movingImage);
 
 % Mask the borders;
@@ -53,9 +54,10 @@ if ismatrix(C)
     [ypeak, xpeak] = ind2sub(size(C_valid),imax(1));
     transform = [(xpeak - search_range(2)) (ypeak - search_range(1))];
 elseif ndims(C) == 3
-    C_valid = C(valid_min(1):end, valid_min(2):end, valid_min(3):end);    
+    C_valid = C(valid_min(1):valid_max(1), valid_min(2):valid_max(2), valid_min(3):valid_max(3));    
     [maxC, imax] = max(C_valid(:));
     [ypeak, xpeak, zpeak] = ind2sub(size(C_valid),imax(1));
+%     fprintf('Peak position (y, x, z) = (%d, %d, %d)\n', ypeak, xpeak, zpeak);
     transform = [(xpeak - search_range(2)), (ypeak - search_range(1)), (zpeak - search_range(3))];
 end
 transform = transform';
@@ -63,6 +65,10 @@ transform = transform';
 % moving image directly. 
 % Take the negative of the transform so that it has the correct sign.
 % transform = -transform;
+%% Debug
+% % Where's the local maxinum in C?
+% [ori_max_C, ori_max_C_ind] = max(C(:));
+% [ori_y_peak, ori_x_peak, ori_z_peak] = ind2sub(size(C), ori_max_C_ind);
 end
 
 %% Sub functions
@@ -93,7 +99,7 @@ function [C,numberOfOverlapMaskedPixels] = normxcorrn_masked(fixedImage, movingI
 %
 %   Author: Dirk Padfield, GE Global Research, padfield@research.ge.com
 if nargin < 5
-    padImageSize = size(movingImage);
+    padImageSize = size(movingImage) - 1;
 end
 fixedImage = shiftData(fixedImage);
 movingImage = shiftData(movingImage);
@@ -126,8 +132,9 @@ end
 clear movingImage movingMask;
 
 % Calculate all of the FFTs that will be needed.
-fixedImageSize = size(fixedImage);
-combinedSize = fixedImageSize + padImageSize - 1;
+% fixedImageSize = size(fixedImage);
+% combinedSize = fixedImageSize + padImageSize - 1;
+combinedSize = size(rotatedMovingImage) + padImageSize - 1;
 % Find the next largest size that is a multiple of a combination of 2, 3,
 % and/or 5.  This makes the FFT calculation much faster.
 optimalSize = arrayfun(@FindClosestValidDimension, combinedSize);

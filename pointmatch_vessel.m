@@ -88,6 +88,7 @@ else
 end
 varargout{1} = exitcode;
 tile_size = [1024,1536,251];
+empty_pixel_size_xyz = [40, 30, 0];
 projectionThr = 5;
 debug = 0;
 
@@ -124,7 +125,7 @@ if ~isfile(tile1) || ~isfile(tile2)
 else
     descriptor_1 = load(tile1);
     descriptor_2 = load(tile2);
-    if (descriptor_1.record.exist_blv || descriptor_2.record.exist_blv) && (iadj == 3)
+    if (descriptor_1.record.exist_blv || descriptor_2.record.exist_blv)
         % 1. Test if the large vessel mask is in the overlapping region -
         % store the information.
         % 2. Load the raw data, use 2d masked fft registration to estimate the
@@ -132,6 +133,7 @@ else
         % 3. Use the estimation to initialize the edge registration
         
         % Load images
+        tic
         tile_image_1 = deployedtiffread(descriptor_1.record.fp_image);
         tile_image_2 = deployedtiffread(descriptor_2.record.fp_image);
         % Flip tiles
@@ -205,16 +207,20 @@ else
 % registration here.
         descriptor_valid_bbox_mmxx = descriptor_1.record.valid_bbox_mmxx;
         pixshift_yxz = pixshift([2,1,3]);
+        empty_pixel_shift = [0,0,0];
+        empty_pixel_shift(iadj) = empty_pixel_size_xyz(iadj);
+        empty_pixel_shift_yxz = empty_pixel_shift([2,1,3]);
+%         empty_pixel_size_yxz = [0, 0, 0];
         tile_size_yxz = tile_size([2,1,3]);
         mask_seach_expansion = 0;
         overlap_bbox_1_mmxx = [1, 1, 1, tile_size_yxz];
         overlap_bbox_2_mmxx = [1, 1, 1, tile_size_yxz];
         if gridshift(iadj) > 0
-            overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), pixshift_yxz) - mask_seach_expansion;
-            overlap_bbox_2_mmxx(4:6) = tile_size_yxz - pixshift_yxz + mask_seach_expansion;
+            overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), pixshift_yxz + empty_pixel_shift_yxz) - mask_seach_expansion;
+            overlap_bbox_2_mmxx(4:6) = tile_size_yxz - (pixshift_yxz) + mask_seach_expansion;
         elseif gridshift(iadj) < 0
-            overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3),  - pixshift_yxz) - mask_seach_expansion;
-            overlap_bbox_1_mmxx(4:6) = tile_size_yxz + pixshift_yxz + mask_seach_expansion;
+            overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3),  - (pixshift_yxz - empty_pixel_shift_yxz)) - mask_seach_expansion;
+            overlap_bbox_1_mmxx(4:6) = tile_size_yxz + ( pixshift_yxz )+ mask_seach_expansion;
         end
         overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
         overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
@@ -228,20 +234,22 @@ else
         est_int_th = 1.5e4;
         test_image_1 = crop_bbox3(tile_image_1, overlap_bbox_1_mmll, 'default');
         test_image_2 = crop_bbox3(tile_image_2, overlap_bbox_2_mmll, 'default');
-        [tmp_translation, tmp_max_xcorr, tmp_c, ~] = MaskedTranslationRegistration(test_image_1, test_image_2, ...
-            test_image_1 > est_int_th , test_image_2 > est_int_th, [50,50,10]);
+        [tmp_translation, tmp_max_xcorr, tmp_c] = MaskedTranslationRegistration(test_image_1, test_image_2, ...
+            test_image_1 > est_int_th , test_image_2 > est_int_th, [20,20,10]);
         fft_pixshift_xyz = overlap_bbox_1_mmll([2,1,3]) - overlap_bbox_2_mmll([2,1,3]) + tmp_translation';
         paireddescriptor.exist_blv = true;
         paireddescriptor.pixshift_mask_fft = fft_pixshift_xyz;
         paireddescriptor.matchrate_mask_fft = tmp_max_xcorr;
-        
+        toc
         % Visualization 
-        [test_image_2_moved]= imtranslate(test_image_2, tmp_translation);
+        vis_pixshift_xyz = fft_pixshift_xyz;
+        vis_translation = vis_pixshift_xyz - overlap_bbox_1_mmll([2,1,3]) + overlap_bbox_2_mmll([2,1,3]);
+        [test_image_2_moved]= imtranslate(test_image_2, vis_translation);
 %         vis_image_2 = test_image_2(:, :, vis_sec - tmp_translation(3)); % Be careful about the minus sign. The z coordinate is pointing downward here. 
 %         vis_image_2_moved = imtranslate(vis_image_2, tmp_translation(1:2));
         vis_sec = 50;
         vis_image_1 = test_image_1(:, :, vis_sec);
-        vis_image_2 = test_image_2(:, :, vis_sec - tmp_translation(3));
+        vis_image_2 = test_image_2(:, :, vis_sec - vis_translation(3));
         figure;
         subplot(1,4,1);
         imshow(vis_image_1);
@@ -254,10 +262,7 @@ else
         title('Translated section from tile 2');
         subplot(1,4,4)
         imshowpair(vis_image_1, test_image_2_moved(:, :, vis_sec));
-        title(sprintf('Image overlap: pixel shift (%d, %d, %d) correlation %f', fft_pixshift_xyz, tmp_max_xcorr));
-
-        
-
+        title(sprintf('Image overlap: pixel shift (%d, %d, %d)', vis_pixshift_xyz));
 %         paireddescriptor.mask_fft_mask_ratio = sec_mask_ratio;
         figure;
         subplot(1,4,1)
@@ -268,9 +273,9 @@ else
         title('Section from tile 2');
         subplot(1,4,3:4)
         RA = imref2d(tile_size_yxz(1:2), [1, tile_size_yxz(2)], [1, tile_size_yxz(1)]);
-        RB = imref2d(tile_size_yxz(1:2), [fft_pixshift_xyz(1),tile_size_yxz(2) + fft_pixshift_xyz(1)], [fft_pixshift_xyz(2),tile_size_yxz(1) + fft_pixshift_xyz(2)]);
+        RB = imref2d(tile_size_yxz(1:2), [vis_pixshift_xyz(1),tile_size_yxz(2) + vis_pixshift_xyz(1)], [vis_pixshift_xyz(2),tile_size_yxz(1) + vis_pixshift_xyz(2)]);
         imshowpair(imadjust(tile_image_1(:, :, vis_sec)), RA, imadjust(tile_image_2(:, :, vis_sec)), RB, 'falsecolor', 'Scaling', 'joint', 'ColorChannels', 'green-magenta')
-        title(sprintf('Overlap after translation (x,y) = (%d, %d) ', fft_pixshift_xyz(1), fft_pixshift_xyz(2)))
+        title(sprintf('Overlap after translation (x,y) = (%d, %d %d)', vis_pixshift_xyz));
         clear tile_image_1 tile_image_2 test_image_1 test_image_2 
     else
         paireddescriptor.exist_blv = false;
@@ -291,8 +296,6 @@ else
     else
         desc1_skel = cat(2, correctTiles(descriptor_1.skl_sub,tile_size), descriptor_1.skl_label);
         desc2_skel = cat(2, correctTiles(descriptor_2.skl_sub,tile_size), descriptor_2.skl_label);
-        % idaj : 1=right(+x), 2=bottom(+y), 3=below(+z)
-        % pixshift(iadj) = pixshift(iadj)+expensionshift(iadj); % initialize with a relative shift to improve CDP
         matchparams = modelParams(projectionThr,debug); % Setting parameters for the matching algorithm
         matchparams.max_num_desc = maxnumofdesc;
         matchparams.scan_z_shift_Q = true;
@@ -302,6 +305,8 @@ else
         %% MATCHING
         [X_skel,Y_skel,rate_, pixshift_skl,nonuniformity] = searchpair_vessel(desc1_skel,desc2_skel,pixshift,iadj,tile_size,matchparams);
         if isempty(X_skel)
+            % I am not sure if this step is very useful or not, sicne CPD
+            % can drift points by quite a lot. 
             disp('No points found. Relax the outliers tolorance and search for matched pairs again');
             matchparams_ = matchparams;
             matchparams_.opt.outliers = .5;

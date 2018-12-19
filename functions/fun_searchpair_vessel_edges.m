@@ -46,7 +46,7 @@ desc_2_selected_Q = all(bsxfun(@ge, desc_2_sub_shifted, overlap_bbox_min) & bsxf
 desc_1_selected = descriptor_1_sub(desc_1_selected_Q,:);
 desc_2_selected = desc_2_sub_shifted(desc_2_selected_Q,:);
 %% Merge edge voxels
-merge_box_size = [6,6,2];
+merge_box_size = [6, 6, 2];
 if (size(desc_1_selected,1) > th_num_ds_desc ) || (size(desc_2_selected,1) > th_num_ds_desc)
     desc_1_sub_ds = fun_stitching_merge_surface_voxels(desc_1_selected, merge_box_size);
     desc_2_sub_ds = fun_stitching_merge_surface_voxels(desc_2_selected, merge_box_size);
@@ -83,10 +83,10 @@ matchparams.model = @(p,y) p(3) - p(2).*((y-p(1)).^2); % FC model
 matchparams.debug = false;
 matchparams.viz = false;
 tic
-[rate, X_, Y_, ~] = vessel_descriptorMatchforz(desc_1_sub_ds, desc_2_sub_ds, pixshift, matchparams);
+[rate, X_, Y_, tY_] = vessel_descriptorMatchforz(desc_1_sub_ds, desc_2_sub_ds, pixshift, matchparams);
 toc
 %% Matched point selection 
-% If the matching is bad, return empay matching directly
+%  If the matching is bad, return empay matching directly
 if rate < 0.8 || isempty(X_) || isempty(Y_)
     X_stable = [];
     Y_stable = [];
@@ -141,7 +141,17 @@ grid_low_std_Q = (std_dis_1 <= 1.5) & (std_dis_2 <= 1.5) & (std_dis_3 <= 0.5) & 
 grid_low_std_voxel_idx = cat(2, grid_idx_cell_array{grid_low_std_Q});
 X_stable = X_(grid_low_std_voxel_idx,:);
 Y_stable = Y_(grid_low_std_voxel_idx,:);
-pixshift = median(disp_X_Y(grid_low_std_voxel_idx, :));
+% The initial estimation of the stage position is quite close. If the
+% displacement between Y_ and tY_ is too large, it must be a wrong
+% matching
+disp_X_Y = X_stable - Y_stable;
+disp_X_Y_med = median(disp_X_Y);
+disp_X_Y_dev = disp_X_Y - disp_X_Y_med;
+disp_X_Y_dev_std = std(single(disp_X_Y_dev),1);
+disp_inlier = all(abs(disp_X_Y_dev) < disp_X_Y_dev_std .* 2, 2);
+X_stable = X_stable(disp_inlier);
+Y_stable = Y_stable(disp_inlier);
+pixshift = median(X_stable - Y_stable);
 %% Visualize matched points
 % figure;
 % subplot(1,3,1)

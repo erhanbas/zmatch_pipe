@@ -192,6 +192,16 @@ while ~flag_stop && iter <= num_search_option% run a search
         end
         R_matched(iter) = rate;
         R_consistant(iter) = consistent_rate;
+        % The displacement between the matched voxels should be consistant.
+        % Remove the outlier pairs whose displacements are significantly
+        % different from the median displacement of the matched pairs
+        disp_X_Y = X_ - Y_;
+        disp_X_Y_med = median(disp_X_Y,1);
+        disp_X_Y_dev = bsxfun(@minus, disp_X_Y , disp_X_Y_med);
+        disp_X_Y_tol = min(15, max(5,std(single(disp_X_Y_dev),1) * 3));
+        disp_kept = all(bsxfun(@le, abs(disp_X_Y_dev), disp_X_Y_tol), 2);
+        X_ = X_(disp_kept, :);
+        Y_ = Y_(disp_kept, :);        
         
         if matchparams.scan_z_shift_Q && rate < 0.95
             disp('No satisfying match found in z direction. Re-estimate shift in z and compute pairs again');
