@@ -25,7 +25,7 @@ end
 
 %%
 tmp=cell(1,numTiles);
-parfor idx = 1:numTiles
+for idx = 1:numTiles
     matchfile = fullfile(descriptorfolder,scopeloc.relativepaths{idx},sprintf('match-%s.mat',directions));
     if exist(matchfile,'file')
         % load descriptors

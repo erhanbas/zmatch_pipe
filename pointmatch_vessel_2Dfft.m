@@ -180,6 +180,35 @@ else
 %         pixshift_xy = [overlap_bbox_1_mmxx(2) - overlap_bbox_2_mmxx(2) + tmp_translation(1),...
 %             overlap_bbox_1_mmxx(1) - overlap_bbox_2_mmxx(1) + tmp_translation(2)];
 %         figure;
+%         subplot(1,6,1);
+%         imshow(tile_image_1(:, :, test_sec))    
+%         title('Image section from tile 1');
+%         subplot(1,6,2);
+%         imshow(tile_image_2(:, :, test_sec))    
+%         title('Image section from tile 2');
+%         subplot(1,6,3);
+%         imshow(test_image_1)
+%         title('Estimated overlaping region from tile 1');
+%         subplot(1,6,4);
+%         imshow(test_image_2)    
+%         title('Estimated overlaping region from tile 2');
+%         subplot(1,6,5);
+%         imshowpair(test_image_1, test_image_2);
+%         title('Image overlay before registration');
+%         subplot(1,6,6);
+%         imshowpair(test_image_1, imtranslate(test_image_2, tmp_translation))
+%         title('Image overlay after registration');
+%         figure;
+%         subplot(1,3,1)
+%         imshowpair(test_image_1, imtranslate(test_image_2, tmp_translation), 'falsecolor', 'Scaling', 'joint', 'ColorChannels', 'green-magenta')
+%         subplot(1,3,2)
+%         imshow(test_image_1);
+%         subplot(1,3,3)
+%         imshow(imtranslate(test_image_2, tmp_translation))      
+%         image_sec_1 = tile_image_1(:, :, test_sec);
+%         image_sec_2 = tile_image_2(:, :, test_sec);
+%         image_sec_size = size(image_sec_1);
+%         figure;
 %         subplot(1,4,1)
 %         imshow(image_sec_1);
 %         title('Section from tile 1');
@@ -191,6 +220,8 @@ else
 %         RB = imref2d(image_sec_size, [pixshift_xy(1),image_sec_size(2) + pixshift_xy(1)], [pixshift_xy(2),image_sec_size(1) + pixshift_xy(2)]);
 %         imshowpair(imadjust(image_sec_1), RA, imadjust(image_sec_2), RB, 'falsecolor', 'Scaling', 'joint', 'ColorChannels', 'green-magenta')
 %         title(sprintf('Overlap after translation (x,y) = (%d, %d) ', pixshift_xy(1), pixshift_xy(2)))
+%% Masked FFT registration on XY direction ( 3D ) 
+
 %% Mask FFT registration on Z direction         
 % The following registration only works for the Z direction 
 % Does this part need to be improved for more robust registration?
@@ -207,70 +238,91 @@ else
         pixshift_yxz = pixshift([2,1,3]);
         tile_size_yxz = tile_size([2,1,3]);
         mask_seach_expansion = 0;
-        overlap_bbox_1_mmxx = [1, 1, 1, tile_size_yxz];
+%         overlap_bbox_1_mmxx = [1, 1, 1, tile_size_yxz];
         overlap_bbox_2_mmxx = [1, 1, 1, tile_size_yxz];
         if gridshift(iadj) > 0
-            overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), pixshift_yxz) - mask_seach_expansion;
+%             overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), pixshift_yxz) - mask_seach_expansion;
             overlap_bbox_2_mmxx(4:6) = tile_size_yxz - pixshift_yxz + mask_seach_expansion;
         elseif gridshift(iadj) < 0
-            overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3),  - pixshift_yxz) - mask_seach_expansion;
-            overlap_bbox_1_mmxx(4:6) = tile_size_yxz + pixshift_yxz + mask_seach_expansion;
+            overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3),  -pixshift_yxz) - mask_seach_expansion;
+%             overlap_bbox_1_mmxx(4:6) = tile_size_yxz + pixshift_yxz + mask_seach_expansion;
         end
-        overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
+%         overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
         overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
-        overlap_bbox_1_mmxx(4:6) = min(overlap_bbox_1_mmxx(4:6), descriptor_valid_bbox_mmxx(4:6));
+%         overlap_bbox_1_mmxx(4:6) = min(overlap_bbox_1_mmxx(4:6), descriptor_valid_bbox_mmxx(4:6));
         overlap_bbox_2_mmxx(4:6) = min(overlap_bbox_2_mmxx(4:6), descriptor_valid_bbox_mmxx(4:6));
-        overlap_bbox_1_mmll = overlap_bbox_1_mmxx;
-        overlap_bbox_1_mmll(4:6) = overlap_bbox_1_mmxx(4:6) - overlap_bbox_1_mmxx(1:3) + 1;
-        overlap_bbox_2_mmll = overlap_bbox_2_mmxx;
-        overlap_bbox_2_mmll(4:6) = overlap_bbox_2_mmxx(4:6) - overlap_bbox_2_mmxx(1:3) + 1;
-%         3D Masked FFT
+        
+        % Search multiple z section, record mask size 
+        tic
+        num_sec = 4;
+        sec_step = ((overlap_bbox_2_mmxx(6) - overlap_bbox_2_mmxx(3))/(num_sec + 1));
+        sec_list_2 = overlap_bbox_2_mmxx(3) + sec_step : sec_step: overlap_bbox_2_mmxx(6) - 5;
+        sec_pixshift_xyz = zeros(3, num_sec);
+        sec_mask_ratio = zeros(1, num_sec);
+        sec_correlation = zeros(1, num_sec);
         est_int_th = 1.5e4;
-        test_image_1 = crop_bbox3(tile_image_1, overlap_bbox_1_mmll, 'default');
-        test_image_2 = crop_bbox3(tile_image_2, overlap_bbox_2_mmll, 'default');
-        [tmp_translation, tmp_max_xcorr, tmp_c, ~] = MaskedTranslationRegistration(test_image_1, test_image_2, ...
-            test_image_1 > est_int_th , test_image_2 > est_int_th, [50,50,10]);
-        fft_pixshift_xyz = overlap_bbox_1_mmll([2,1,3]) - overlap_bbox_2_mmll([2,1,3]) + tmp_translation';
+        test_sec_search_range = -15 : 1 : 15;
+        num_search = numel(test_sec_search_range);
+        sec_scan_score = zeros(num_search, num_sec);
+        for iter_sec = 1 : num_sec
+            test_sec_in_2 = round(sec_list_2(iter_sec));
+%         test_sec_in_2 = round((overlap_bbox_2_mmxx(iadj * 2) - overlap_bbox_2_mmxx(iadj))/2);
+%             test_sec_in_2 = 35;
+            
+            scan_translation_xy = zeros(2,num_search);
+            scan_score_xy = zeros(1, num_search);
+            for iter_1 = 1 : num_search
+                test_sec_in_1 = pixshift(iadj) +  test_sec_in_2 + test_sec_search_range(iter_1);
+                if test_sec_in_1 >= 1 && test_sec_in_1 <= tile_size(3)
+                test_image_2 = tile_image_2(:, :, test_sec_in_2);
+                test_image_1 = tile_image_1(:, :, test_sec_in_1);
+                [scan_translation_xy(:, iter_1), scan_score_xy(iter_1), ~, ~] = MaskedTranslationRegistration(test_image_1, test_image_2, ...
+                    test_image_2 > est_int_th , test_image_2 > est_int_th);
+                end
+            end
+            sec_scan_score(:, iter_sec) = scan_score_xy;
+            [sec_correlation(iter_sec), max_idx] = max(scan_score_xy);
+            pixshift_xy = scan_translation_xy(:, max_idx);
+            pixshift_z = pixshift(iadj) + test_sec_search_range(max_idx);
+            sec_pixshift_xyz(:, iter_sec) = [pixshift_xy; pixshift_z];
+            sec_mask_ratio(iter_sec) = nnz(tile_image_1(:, :, test_sec_in_2 + pixshift_z)> est_int_th)  / prod(tile_size_yxz(1:2));
+        end
+        toc 
+        % Update the pixel shift
+        % Need to get a sense about the range of correlation for good
+        % registration. Only update the pixshift if the translational
+        % registration is good. 
         paireddescriptor.exist_blv = true;
-        paireddescriptor.pixshift_mask_fft = fft_pixshift_xyz;
-        paireddescriptor.matchrate_mask_fft = tmp_max_xcorr;
-        
-        % Visualization 
-        [test_image_2_moved]= imtranslate(test_image_2, tmp_translation);
-%         vis_image_2 = test_image_2(:, :, vis_sec - tmp_translation(3)); % Be careful about the minus sign. The z coordinate is pointing downward here. 
-%         vis_image_2_moved = imtranslate(vis_image_2, tmp_translation(1:2));
-        vis_sec = 50;
-        vis_image_1 = test_image_1(:, :, vis_sec);
-        vis_image_2 = test_image_2(:, :, vis_sec - tmp_translation(3));
+        paireddescriptor.pixshift_mask_fft = sec_pixshift_xyz;
+        paireddescriptor.matchrate_mask_fft = sec_correlation;
+        paireddescriptor.mask_fft_mask_ratio = sec_mask_ratio;
+        % visualization - for debug
+        iter_sec = 4;
+        matched_image_1 = tile_image_1(:, :, round(sec_list_2(iter_sec)) + sec_pixshift_xyz(3, iter_sec));
+        test_image_2 = tile_image_2(:, :, round(sec_list_2(iter_sec)));
         figure;
-        subplot(1,4,1);
-        imshow(vis_image_1);
-        title('Section from tile 1');
-        subplot(1,4,2)
-        imshow(vis_image_2);
-        title('Section from tile 2');
-        subplot(1,4,3)
-        imshow(test_image_2_moved(:, :, vis_sec));
-        title('Translated section from tile 2');
-        subplot(1,4,4)
-        imshowpair(vis_image_1, test_image_2_moved(:, :, vis_sec));
-        title(sprintf('Image overlap: pixel shift (%d, %d, %d) correlation %f', fft_pixshift_xyz, tmp_max_xcorr));
+        subplot(1,3,1);
+        plot(sec_scan_score(:, iter_sec))
+        moved_image = imtranslate(test_image_2, sec_pixshift_xyz(1:2, iter_sec));        
+        subplot(1,3,2);
+        imshowpair(matched_image_1, test_image_2);
+        title('Image overlay before registration');
+        subplot(1,3,3);
+        imshowpair(matched_image_1, moved_image)
+        title('Image overlay after registration');
 
-        
-
-%         paireddescriptor.mask_fft_mask_ratio = sec_mask_ratio;
-        figure;
-        subplot(1,4,1)
-        imshow(tile_image_1(:, :, vis_sec));
-        title('Section from tile 1');
-        subplot(1,4,2)
-        imshow(tile_image_2(:, :, vis_sec));
-        title('Section from tile 2');
-        subplot(1,4,3:4)
-        RA = imref2d(tile_size_yxz(1:2), [1, tile_size_yxz(2)], [1, tile_size_yxz(1)]);
-        RB = imref2d(tile_size_yxz(1:2), [fft_pixshift_xyz(1),tile_size_yxz(2) + fft_pixshift_xyz(1)], [fft_pixshift_xyz(2),tile_size_yxz(1) + fft_pixshift_xyz(2)]);
-        imshowpair(imadjust(tile_image_1(:, :, vis_sec)), RA, imadjust(tile_image_2(:, :, vis_sec)), RB, 'falsecolor', 'Scaling', 'joint', 'ColorChannels', 'green-magenta')
-        title(sprintf('Overlap after translation (x,y) = (%d, %d) ', fft_pixshift_xyz(1), fft_pixshift_xyz(2)))
+%         figure;
+%         subplot(1,4,1)
+%         imshow(image_sec_1);
+%         title('Section from tile 1');
+%         subplot(1,4,2)
+%         imshow(image_sec_2);
+%         title('Section from tile 2');
+%         subplot(1,4,3:4)
+%         RA = imref2d(image_sec_size, [1, image_sec_size(2)], [1, image_sec_size(1)]);
+%         RB = imref2d(image_sec_size, [pixshift_xy(1),image_sec_size(2) + pixshift_xy(1)], [pixshift_xy(2),image_sec_size(1) + pixshift_xy(2)]);
+%         imshowpair(imadjust(image_sec_1), RA, imadjust(image_sec_2), RB, 'falsecolor', 'Scaling', 'joint', 'ColorChannels', 'green-magenta')
+%         title(sprintf('Overlap after translation (x,y) = (%d, %d) ', pixshift_xy(1), pixshift_xy(2)))
         clear tile_image_1 tile_image_2 test_image_1 test_image_2 
     else
         paireddescriptor.exist_blv = false;

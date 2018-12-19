@@ -1,4 +1,4 @@
-function [transform,maxC,C,numberOfOverlapMaskedPixels] = MaskedTranslationRegistration(fixedImage,movingImage,fixedMask,movingMask,search_range, overlapRatio)
+function [transform,maxC,C,numberOfOverlapMaskedPixels] = MaskedTranslationRegistration(fixedImage,movingImage,fixedMask,movingMask,overlapRatio)
 
 % [transform,maxC,C,numberOfOverlapMaskedPixels] =
 % MaskedTranslationRegistration(fixedImage,movingImage,fixedMask,movingMask,overlapRatio) 
@@ -25,38 +25,27 @@ function [transform,maxC,C,numberOfOverlapMaskedPixels] = MaskedTranslationRegis
 %   Pattern Recognition, 2010. 
 %
 %   Author: Dirk Padfield, GE Global Research, padfield@research.ge.com
+%
 
-% Modified by Xiang Ji, UC San Diego, xiangji.ucsd@gmail.com
-% 1. Generalize to 3D masked FFT registration and add restriction by
-% allowing choosing array padding size
-% 2. Accelerate the computation with nearly no lost in accuracy in the
-% computation of the correlation array. 
-if nargin < 5
-    search_range = size(movingImage); % Search the translation only in +- search_range 
-    overlapRatio = 3/10;
-elseif nargin < 6
+if( nargin < 5 )
     overlapRatio = 3/10;
 end
-[C,numberOfOverlapMaskedPixels] = normxcorrn_masked(fixedImage,movingImage,fixedMask,movingMask, search_range);
-% fixed_image_size = size(fixedImage);
-moving_image_size = size(movingImage);
-valid_min = moving_image_size - search_range + 1;
-% imageSize = size(movingImage);
+% [C,numberOfOverlapMaskedPixels] = normxcorr2_masked(fixedImage,movingImage,fixedMask,movingMask);
+
+[C,numberOfOverlapMaskedPixels] = normxcorrn_masked(fixedImage,movingImage,fixedMask,movingMask);
+imageSize = size(movingImage);
 
 % Mask the borders;
 numberOfPixelsThreshold = overlapRatio * max(numberOfOverlapMaskedPixels(:));
 C(numberOfOverlapMaskedPixels < numberOfPixelsThreshold) = 0;
-% Take the valid part of C:
+
+[maxC, imax] = max(C(:));
 if ismatrix(C)
-    C_valid = C(valid_min(1):end, valid_min(2):end);    
-    [maxC, imax] = max(C_valid(:));
-    [ypeak, xpeak] = ind2sub(size(C_valid),imax(1));
-    transform = [(xpeak - search_range(2)) (ypeak - search_range(1))];
+    [ypeak, xpeak] = ind2sub(size(C),imax(1));
+    transform = [(xpeak-imageSize(2)) (ypeak-imageSize(1))];
 elseif ndims(C) == 3
-    C_valid = C(valid_min(1):end, valid_min(2):end, valid_min(3):end);    
-    [maxC, imax] = max(C_valid(:));
-    [ypeak, xpeak, zpeak] = ind2sub(size(C_valid),imax(1));
-    transform = [(xpeak - search_range(2)), (ypeak - search_range(1)), (zpeak - search_range(3))];
+    [ypeak, xpeak, zpeak] = ind2sub(size(C),imax(1));
+    transform = [(xpeak-imageSize(2)), (ypeak-imageSize(1)), (zpeak-imageSize(3))];
 end
 transform = transform';
 % The resulting translation can be fed into imtranslate to translate the
@@ -66,7 +55,7 @@ transform = transform';
 end
 
 %% Sub functions
-function [C,numberOfOverlapMaskedPixels] = normxcorrn_masked(fixedImage, movingImage, fixedMask, movingMask, padImageSize)
+function [C,numberOfOverlapMaskedPixels] = normxcorrn_masked(varargin)
 
 % [C,numberOfOverlapMaskedPixels] =
 % normxcorr2_masked(fixedImage, movingImage, fixedMask, movingMask)
@@ -92,11 +81,19 @@ function [C,numberOfOverlapMaskedPixels] = normxcorrn_masked(fixedImage, movingI
 %   Pattern Recognition, 2010. 
 %
 %   Author: Dirk Padfield, GE Global Research, padfield@research.ge.com
-if nargin < 5
-    padImageSize = size(movingImage);
-end
-fixedImage = shiftData(fixedImage);
-movingImage = shiftData(movingImage);
+% 
+% Modified by Xiang Ji (UC San Diego) on Dec 13
+% 1. Generalize to 3D masked FFT registration. It's extremely
+% memory expensive. To align two 1532x1024x251 images stack in single
+% precision, it takes up to 200+ GB of memory due to the array padding and
+% complex array. The memory requirement can be reduced by specifying the
+% registration direction or search range( to be implemented )
+% 2. Accelerate the computation with nearly no lost in accuracy in the
+% computation of the correlation array. 
+
+[fixedImage, movingImage, fixedMask, movingMask] = ParseInputs(varargin{:});
+clear varargin;
+
 if islogical(fixedMask) && islogical(movingMask)
     fixedMask = single(fixedMask);
     movingMask = single(movingMask);
@@ -114,8 +111,7 @@ fixedImage = fixedImage .* fixedMask;
 movingImage = movingImage .* movingMask;
 
 % Flip the moving image and mask in both dimensions so that its correlation
-% can be more easily handled. - Convert the correlation to the convolution
-% of the flipped image array 
+% can be more easily handled.
 flip_dimension = find(size(movingImage)~=1);
 rotatedMovingImage = movingImage;
 rotatedMovingMask = movingMask;
@@ -123,11 +119,14 @@ for tmp_dim = flip_dimension
     rotatedMovingImage = flip(rotatedMovingImage, tmp_dim);
     rotatedMovingMask = flip(rotatedMovingMask, tmp_dim);
 end
+% rotatedMovingImage = rot90(movingImage,2);
+% rotatedMovingMask = rot90(movingMask,2);
 clear movingImage movingMask;
 
 % Calculate all of the FFTs that will be needed.
 fixedImageSize = size(fixedImage);
-combinedSize = fixedImageSize + padImageSize - 1;
+movingImageSize = size(rotatedMovingImage);
+combinedSize = fixedImageSize + movingImageSize - 1;
 % Find the next largest size that is a multiple of a combination of 2, 3,
 % and/or 5.  This makes the FFT calculation much faster.
 optimalSize = arrayfun(@FindClosestValidDimension, combinedSize);
@@ -178,6 +177,26 @@ end
 
 end
 %-----------------------------------------------------------------------------
+function [fixedImage, movingImage, fixedMask, movingMask] = ParseInputs(varargin)
+
+narginchk(4,4)
+
+fixedImage = varargin{1};
+movingImage = varargin{2};
+fixedMask = varargin{3};
+movingMask = varargin{4};
+
+validateattributes(fixedImage,{'logical','numeric'},{'real','nonsparse','finite'},mfilename,'fixedImage',1)
+validateattributes(movingImage,{'logical','numeric'},{'real','nonsparse','finite'},mfilename,'movingImage',2)
+validateattributes(fixedMask,{'logical','numeric'},{'real','nonsparse','finite'},mfilename,'fixedMask',3)
+validateattributes(movingMask,{'logical','numeric'},{'real','nonsparse','finite'},mfilename,'movingMask',4)
+
+% If either fixedImage or movingImage has a minimum value which is negative, we
+% need to shift the array so all values are positive to ensure numerically
+% robust results for the normalized cross-correlation.
+fixedImage = shiftData(fixedImage);
+movingImage = shiftData(movingImage);
+end
 %-----------------------------------------------------------------------------
 function B = shiftData(A)
 
