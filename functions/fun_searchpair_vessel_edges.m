@@ -21,13 +21,13 @@ function [X_stable,Y_stable,rate, pixshift] = fun_searchpair_vessel_edges(descri
 %   pixshift: 3-by-1 numerical array, median of the displacement of the
 %   output paired point sets. 
 % 
-% Author: Xiang Ji ( xiangji.ucsd@gmail.com )
+% Author: Xiang Ji, UC San Diego ( xiangji.ucsd@gmail.com )
 % Date: Dec 5, 2018
 
 % If the number of available feature points is larger than this number,
 % downsample the point cloud.
 th_num_ds_desc = 30000; 
-
+% pixshift = [20, 0, 143];
 pixshift =  pixshiftinit;
 %% Transform the descriptor according to the estimated shift first
 desc_2_sub_shifted = bsxfun(@plus, descriptor_2_sub, pixshift);
@@ -82,9 +82,7 @@ matchparams.projectionThr = projectionThr;
 matchparams.model = @(p,y) p(3) - p(2).*((y-p(1)).^2); % FC model
 matchparams.debug = false;
 matchparams.viz = false;
-tic
 [rate, X_, Y_, tY_] = vessel_descriptorMatchforz(desc_1_sub_ds, desc_2_sub_ds, pixshift, matchparams);
-toc
 %% Matched point selection 
 %  If the matching is bad, return empay matching directly
 if rate < 0.8 || isempty(X_) || isempty(Y_)
@@ -147,10 +145,10 @@ Y_stable = Y_(grid_low_std_voxel_idx,:);
 disp_X_Y = X_stable - Y_stable;
 disp_X_Y_med = median(disp_X_Y);
 disp_X_Y_dev = disp_X_Y - disp_X_Y_med;
-disp_X_Y_dev_std = std(single(disp_X_Y_dev),1);
-disp_inlier = all(abs(disp_X_Y_dev) < disp_X_Y_dev_std .* 2, 2);
-X_stable = X_stable(disp_inlier);
-Y_stable = Y_stable(disp_inlier);
+disp_X_Y_tol = min(15, max(5,std(single(disp_X_Y_dev),1) * 3));
+disp_inlier = all(abs(disp_X_Y_dev) < disp_X_Y_tol, 2);
+X_stable = X_stable(disp_inlier, :);
+Y_stable = Y_stable(disp_inlier, :);
 pixshift = median(X_stable - Y_stable);
 %% Visualize matched points
 % figure;
@@ -231,8 +229,6 @@ function voxel_sub = fun_stitching_merge_surface_voxels(voxel_sub, merge_block_s
 %   merge_block_size: 1-by-3 numerical vector, size of the block for merging. 
 % Output: 
 %   voxel_sub: N'-by-3 numerical array after merging
-% Author: Xiang Ji (xiangji.ucsd@gmail.com) 
-% Date: Dec 5, 2018
 sub_min = min(voxel_sub, [], 1);
 sub_max = max(voxel_sub, [], 1);
 image_size = sub_max - sub_min + 1;
@@ -303,4 +299,53 @@ if rate < .5 % dont need to continue
     return
 end
 Y_ = bsxfun(@minus, Y_, pixshift);
+end
+%% Sub function 
+function [bin_cell_array, varargout] = fun_bin_data_to_idx_list(data)
+% fun_bin_data_to_idx_list bin the data according to their values and
+% output the corresponding index list
+% Input: 
+%   data: numerical vector
+% Output: 
+%   bin_cell_array: cell array, each cell constains a vector, whose
+%   components are the indices of the component of data that have the same
+%   value. 
+%   varargout: unique data value 
+num_data = numel(data);
+if ~issorted(data)
+    [data, idx_list ]= sort(data, 'ascend');
+else
+    idx_list = 1 : num_data;
+end
+
+bin_size = 0;
+bin_data = data(1);
+bin_idx = zeros(1, round(num_data/2));
+est_num_bin = 500;
+bin_value_list = zeros(est_num_bin,1);
+bin_value_list(1) = data(1);
+bin_cell_array = cell(est_num_bin,1);
+num_bin = 0;
+for idx = 1 : num_data
+    tmp_data = data(idx);
+    
+    if tmp_data == bin_data
+        bin_size = bin_size + 1;
+        bin_idx(bin_size) = idx_list(idx);
+    else
+        num_bin = num_bin + 1;
+        bin_cell_array{num_bin} = bin_idx(1 : bin_size);
+        bin_data = tmp_data;
+        bin_value_list(num_bin + 1) = bin_data;
+        bin_idx(1) = idx_list(idx);
+        bin_size = 1;
+    end
+end
+num_bin = num_bin + 1;
+bin_cell_array{num_bin} = bin_idx(1 : bin_size);
+bin_cell_array(num_bin + 1 : end) = [];
+bin_value_list = bin_value_list(1 : num_bin);
+if nargout > 1
+    varargout{1} = bin_value_list;
+end
 end
