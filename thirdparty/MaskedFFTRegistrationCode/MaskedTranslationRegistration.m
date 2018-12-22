@@ -65,10 +65,6 @@ transform = transform';
 % moving image directly. 
 % Take the negative of the transform so that it has the correct sign.
 % transform = -transform;
-%% Debug
-% % Where's the local maxinum in C?
-% [ori_max_C, ori_max_C_ind] = max(C(:));
-% [ori_y_peak, ori_x_peak, ori_z_peak] = ind2sub(size(C), ori_max_C_ind);
 end
 
 %% Sub functions

@@ -87,7 +87,7 @@ else
     ch_desc={ch};
 end
 varargout{1} = exitcode;
-tile_size = [1024,1536,251];
+tile_size_xyz = [1024,1536,251];
 empty_pixel_size_xyz = [40, 30, 0];
 projectionThr = 5;
 debug = 0;
@@ -98,12 +98,12 @@ scopefile2 = readScopeFile(acqusitionfolder2);
 imsize_um = [scopefile1.x_size_um,scopefile1.y_size_um,scopefile1.z_size_um];
 % estimate translation
 gridshift = ([scopefile2.x scopefile2.y scopefile2.z]-[scopefile1.x scopefile1.y scopefile1.z]);
-iadj =find(gridshift);
+iadj = find(gridshift);
 % Stage shift in micron
 stgshift = 1000*([scopefile2.x_mm scopefile2.y_mm scopefile2.z_mm]-[scopefile1.x_mm scopefile1.y_mm scopefile1.z_mm]);
 % Conver the stage shift to voxel distance
 if all(pixshift==0)
-    pixshift = round(stgshift.*(tile_size-1)./imsize_um);
+    pixshift = round(stgshift.*(tile_size_xyz-1)./imsize_um);
 end
 paireddescriptor.stage_pixshift = pixshift;
 %%
@@ -149,8 +149,7 @@ else
     empty_pixel_shift = [0,0,0];
     empty_pixel_shift(iadj) = empty_pixel_size_xyz(iadj);
     empty_pixel_shift_yxz = empty_pixel_shift([2,1,3]);
-    %         empty_pixel_size_yxz = [0, 0, 0];
-    tile_size_yxz = tile_size([2,1,3]);
+    tile_size_yxz = tile_size_xyz([2,1,3]);
     mask_seach_expansion = 0;
     overlap_bbox_1_mmxx = [1, 1, 1, tile_size_yxz];
     overlap_bbox_2_mmxx = [1, 1, 1, tile_size_yxz];
@@ -176,7 +175,6 @@ else
     [tmp_translation, tmp_max_xcorr, tmp_c] = MaskedTranslationRegistration(test_image_1, test_image_2, ...
         test_image_1 > est_int_th , test_image_2 > est_int_th, [20,20,10]);
     fft_pixshift_xyz = overlap_bbox_1_mmll([2,1,3]) - overlap_bbox_2_mmll([2,1,3]) + tmp_translation';
-    paireddescriptor.exist_blv = true;
     paireddescriptor.pixshift_mask_fft = fft_pixshift_xyz;
     paireddescriptor.matchrate_mask_fft = tmp_max_xcorr;
     toc
@@ -184,25 +182,29 @@ else
 %         vis_pixshift_xyz = fft_pixshift_xyz;
 %         vis_translation = vis_pixshift_xyz - overlap_bbox_1_mmll([2,1,3]) + overlap_bbox_2_mmll([2,1,3]);
 %         [test_image_2_moved]= imtranslate(test_image_2, vis_translation);
-%         vis_image_2 = test_image_2(:, :, vis_sec - tmp_translation(3)); % Be careful about the minus sign. The z coordinate is pointing downward here. 
-%         vis_image_2_moved = imtranslate(vis_image_2, tmp_translation(1:2));
-%         vis_sec = 20;
+%         vis_sec = 10;
 %         vis_image_1 = test_image_1(:, :, vis_sec);
 %         vis_image_2 = test_image_2(:, :, vis_sec - vis_translation(3));
+%         vis_image_2_moved = test_image_2_moved(:, :, vis_sec);
+% %         vis_image_1 = max(test_image_1, [], 3);
+% %         vis_image_2 = max(test_image_2, [], 3);
+% %         vis_image_2_moved = max(test_image_2_moved, [], 3);
 %         figure;
 %         subplot(1,4,1);
 %         imshow(vis_image_1);
-%         title('Section from tile 1');
+%         title('Tile 1 max projection');
+% %         title('Section from tile 1');
 %         subplot(1,4,2)
 %         imshow(vis_image_2);
-%         title('Section from tile 2');
+% %         title('Section from tile 2');
+%         title('Tile 2 max projection');
 %         subplot(1,4,3)
-%         imshow(test_image_2_moved(:, :, vis_sec));
-%         title('Translated section from tile 2');
+%         imshow(vis_image_2_moved);
+%         title('Translated tile 2 max projection');
+% %         title('Translated section from tile 2');
 %         subplot(1,4,4)
-%         imshowpair(vis_image_1, test_image_2_moved(:, :, vis_sec));
+%         imshowpair(vis_image_1, vis_image_2_moved);
 %         title(sprintf('Image overlap: pixel shift (%d, %d, %d)', vis_pixshift_xyz));
-%         paireddescriptor.mask_fft_mask_ratio = sec_mask_ratio;
 %         figure;
 %         subplot(1,4,1)
 %         imshow(tile_image_1(:, :, vis_sec));
@@ -215,17 +217,11 @@ else
 %         RB = imref2d(tile_size_yxz(1:2), [vis_pixshift_xyz(1),tile_size_yxz(2) + vis_pixshift_xyz(1)], [vis_pixshift_xyz(2),tile_size_yxz(1) + vis_pixshift_xyz(2)]);
 %         imshowpair(imadjust(tile_image_1(:, :, vis_sec)), RA, imadjust(tile_image_2(:, :, vis_sec)), RB, 'falsecolor', 'Scaling', 'joint', 'ColorChannels', 'green-magenta')
 %         title(sprintf('Overlap after translation (x,y) = (%d, %d %d)', vis_pixshift_xyz));
-        clear tile_image_1 tile_image_2 test_image_1 test_image_2 
-%     else
-%         paireddescriptor.exist_blv = false;
-%         paireddescriptor.pixshift_mask_fft = [];
-%         paireddescriptor.matchrate_mask_fft = [];
-%         paireddescriptor.mask_fft_mask_ratio = [];
-%     end
+%         clear tile_image_1 tile_image_2 test_image_1 test_image_2 
     % Need to decide when to use this
-    if ~isempty(paireddescriptor.pixshift_mask_fft)
+%     if ~isempty(paireddescriptor.pixshift_mask_fft)
 %         pixshift = paireddescriptor.pixshift_mask_fft;
-    end
+%     end
 %% Skeleton point registration
     if isempty(descriptor_1.skl_sub) || isempty(descriptor_2.skl_sub)
         rate_ = 0;
@@ -233,8 +229,8 @@ else
         Y_skel = [];
         uni = 0;
     else
-        desc1_skel = cat(2, correctTiles(descriptor_1.skl_sub,tile_size), descriptor_1.skl_label);
-        desc2_skel = cat(2, correctTiles(descriptor_2.skl_sub,tile_size), descriptor_2.skl_label);
+        desc1_skel = cat(2, correctTiles(descriptor_1.skl_sub,tile_size_xyz), descriptor_1.skl_label);
+        desc2_skel = cat(2, correctTiles(descriptor_2.skl_sub,tile_size_xyz), descriptor_2.skl_label);
         matchparams = modelParams(projectionThr,debug); % Setting parameters for the matching algorithm
         matchparams.max_num_desc = maxnumofdesc;
         matchparams.scan_z_shift_Q = true;
@@ -244,7 +240,7 @@ else
         %% MATCHING
         disp('Vessel skeleton CPD');
         tic
-        [X_skel,Y_skel,rate_, pixshift_skl,nonuniformity] = searchpair_vessel(desc1_skel,desc2_skel,pixshift,iadj,tile_size,matchparams);
+        [X_skel,Y_skel,rate_, pixshift_skl,nonuniformity] = searchpair_vessel(desc1_skel,desc2_skel,pixshift,iadj,tile_size_xyz,matchparams);
         if isempty(X_skel)
             % I am not sure if this step is very useful or not, sicne CPD
             % can drift points by quite a lot. 
@@ -253,12 +249,12 @@ else
             matchparams_.opt.outliers = .5;
             matchparams_.selected_close_descriptor_pair_Q = true;
             matchparams_.scan_z_shift_Q = false;
-            [X_skel,Y_skel,rate_,pixshift_skl, nonuniformity] = searchpair_vessel(desc1_skel, desc2_skel, pixshift, iadj, tile_size, matchparams_);
+            [X_skel,Y_skel,rate_,pixshift_skl, nonuniformity] = searchpair_vessel(desc1_skel, desc2_skel, pixshift, iadj, tile_size_xyz, matchparams_);
         end
         toc        
         if ~isempty(X_skel)
-            X_skel = correctTiles(X_skel,tile_size);
-            Y_skel = correctTiles(Y_skel,tile_size);
+            X_skel = correctTiles(X_skel,tile_size_xyz);
+            Y_skel = correctTiles(Y_skel,tile_size_xyz);
         end
         uni = mean(nonuniformity)<=.5;
         paireddescriptor.pixshift_skl = pixshift_skl;
@@ -268,6 +264,8 @@ else
         paireddescriptor.uni = uni;
         if rate_ > 0.95 && size(X_skel, 1) > 100
             pixshift = pixshift_skl;
+        else
+            pixshift = paireddescriptor.pixshift_mask_fft;
         end
     end
 %% If both the descriptor contains boundary large vessels 
@@ -275,15 +273,15 @@ else
     if (descriptor_1.record.compute_edge && descriptor_2.record.compute_edge)
         desc1_edge = descriptor_1.edge_sub;
         desc2_edge = descriptor_2.edge_sub;
-        desc1_edge = correctTiles(desc1_edge, tile_size);
-        desc2_edge = correctTiles(desc2_edge, tile_size);
+        desc1_edge = correctTiles(desc1_edge, tile_size_xyz);
+        desc2_edge = correctTiles(desc2_edge, tile_size_xyz);
         disp('Vessel edge CPD');
         tic
         [X_edge, Y_edge, rate_edge, pixshift_edge] = fun_searchpair_vessel_edges(desc1_edge, desc2_edge, pixshift);
         toc
         if ~isempty(X_edge)
-            X_edge = correctTiles(X_edge, tile_size);
-            Y_edge = correctTiles(Y_edge, tile_size);
+            X_edge = correctTiles(X_edge, tile_size_xyz);
+            Y_edge = correctTiles(Y_edge, tile_size_xyz);
         end
         paireddescriptor.exist_blv = true;
         paireddescriptor.matchrate_edge = rate_edge;

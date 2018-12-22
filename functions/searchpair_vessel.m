@@ -28,6 +28,14 @@ if isfield(matchparams, 'max_num_desc')
 else
     total_num_descriptor = 5000;
 end
+
+if ~isfield(matchparams, 'viz')
+    vis_Q = false;
+else
+    vis_Q = matchparams.viz;
+end
+
+
 pixshift = pixshiftinit;
 % Inconsistancy threshold
 th_inconsistancy = 0.2;
@@ -203,8 +211,8 @@ while ~flag_stop && iter <= num_search_option% run a search
         X_ = X_(disp_kept, :);
         Y_ = Y_(disp_kept, :);        
         
-        if matchparams.scan_z_shift_Q && rate < 0.95
-            disp('No satisfying match found in z direction. Re-estimate shift in z and compute pairs again');
+        if matchparams.scan_pixshift_Q && rate < 0.95
+            disp('Matching not good enough. Shift the overlapping region and search for pairs again');
             if iter == 1
                 X_0 = X_;
                 Y_0 = Y_;
@@ -265,8 +273,18 @@ while ~flag_stop && iter <= num_search_option% run a search
         rate_ = rate;
         nonuniformity = nonuniformity(1 : iter);
     end
-    
 end
+if vis_Q
+    figure;
+    scatter3(X_(:,1), X_(:,2), X_(:,3));
+    hold on 
+    scatter3(Y_(:,1), Y_(:,2), Y_(:,3));
+    legend('Tile 1', 'Tile 2');
+    xlabel('X');
+    ylabel('Y');
+    zlabel('Z');
+end
+
 end
 %% Subfunctions
 function [rate,X_,Y_,tY_] = descriptorMatchforz(X,Y,pixshift,iadj,params)
@@ -288,15 +306,11 @@ function [rate,X_,Y_,tY_] = descriptorMatchforz(X,Y,pixshift,iadj,params)
 
 % $Author: base $	$Date: 2016/09/23 14:09:29 $	$Revision: 0.1 $
 % Copyright: HHMI 2016
-tY_ = [];
-out = [];
-opt = params.opt;
-model = params.model;
-optimopts = params.optimopts;
-projectionThr = params.projectionThr;
-debug = params.viz;
+% out = [];
+% model = params.model;
+% debug = params.viz;
 %% Initial match based on point drift
-[Transform, C] = cpd_register(X,Y,opt);
+[Transform, C] = cpd_register(X,Y,params.opt);
 %% check if match is found
 % Compute the pairwise euclidean distance between two input array
 pD = pdist2(X,Transform.Y);
@@ -305,7 +319,7 @@ pD = pdist2(X,Transform.Y);
 keeptheseY = find([1:length(bb1)]'==bb2(bb1));
 keeptheseX = bb1(keeptheseY)';
 
-disttrim = aa1(keeptheseY)' < projectionThr;
+disttrim = aa1(keeptheseY)' < params.projectionThr;
 X_ = X(keeptheseX(disttrim),:);
 Y_ = Y(keeptheseY(disttrim),:);
 tY_= Transform.Y(keeptheseY(disttrim),:);
@@ -317,11 +331,7 @@ rate = sum(disttrim)/length(disttrim);
 %     [X_,Y_,out] = deal(0);
 %     return
 % end
-%%
-% Y_(:,iadj) = Y_(:,iadj)- pixshift(iadj);% move it back to original location after CDP
 Y_ = bsxfun(@minus, Y_, pixshift);
-% Y_ = Y_ - ones(size(Y_,1),1)*pixshift;% move it back to original location after CDP
-
 % %%
 % % displacement field between follows a field curve on x&y due to
 % % optics and deformation curve due to tissue and cut force on z
@@ -368,28 +378,28 @@ Y_ = bsxfun(@minus, Y_, pixshift);
 % X_ = X_(~outliers,:);
 % Y_ = Y_(~outliers,:);
 % tY_ = tY_(~outliers,:);
-if debug
-    xgridest = feval(model,out,gridy);
-    figure(100),
-    subplot(2,2,iadj),cla
-    imagesc(density,'Xdata',[gridx],'Ydata',[gridy])
-    axis tight
-    hold on,
-    plot(x,y,'m.')
-    plot(x_inline,y_inline,'mo')
-    plot(x(~outliers),y(~outliers),'gd')
-    plot(xgridest,gridy,'r-')
-    
-    subplot(2,2,4),
-    cla
-    hold on
-    plot3(X(:,1),X(:,2),X(:,3),'b+')
-    plot3(Y(:,1),Y(:,2),Y(:,3),'m.')
-    plot3(Transform.Y(:,1),Transform.Y(:,2),Transform.Y(:,3),'ro')
-    pause(.5)
-    drawnow
-    
-end
+% if debug
+%     xgridest = feval(model,out,gridy);
+%     figure(100),
+%     subplot(2,2,iadj),cla
+%     imagesc(density,'Xdata',[gridx],'Ydata',[gridy])
+%     axis tight
+%     hold on,
+%     plot(x,y,'m.')
+%     plot(x_inline,y_inline,'mo')
+%     plot(x(~outliers),y(~outliers),'gd')
+%     plot(xgridest,gridy,'r-')
+%     
+%     subplot(2,2,4),
+%     cla
+%     hold on
+%     plot3(X(:,1),X(:,2),X(:,3),'b+')
+%     plot3(Y(:,1),Y(:,2),Y(:,3),'m.')
+%     plot3(Transform.Y(:,1),Transform.Y(:,2),Transform.Y(:,3),'ro')
+%     pause(.5)
+%     drawnow
+%     
+% end
 end
 %% Subfunctions
 function [bin_cell_array, varargout] = fun_bin_data_to_idx_list(data)

@@ -27,6 +27,7 @@ function [X_stable,Y_stable,rate, pixshift] = fun_searchpair_vessel_edges(descri
 % If the number of available feature points is larger than this number,
 % downsample the point cloud.
 th_num_ds_desc = 30000; 
+max_disp_um = 15;
 % pixshift = [20, 0, 143];
 pixshift =  pixshiftinit;
 %% Transform the descriptor according to the estimated shift first
@@ -45,8 +46,22 @@ desc_2_selected_Q = all(bsxfun(@ge, desc_2_sub_shifted, overlap_bbox_min) & bsxf
 
 desc_1_selected = descriptor_1_sub(desc_1_selected_Q,:);
 desc_2_selected = desc_2_sub_shifted(desc_2_selected_Q,:);
+%% Descriptor pair selection: The distance between two point set (after shifted by initial estimation) should not be too large
+tmp_pdist = pdist2(desc_1_selected, desc_2_selected, 'seuclidean', [3,3,1]);
+tmp_pdist_reasonable = tmp_pdist < max_disp_um;
+desc_1_selected_Q = any(tmp_pdist_reasonable, 2);
+desc_2_selected_Q = any(tmp_pdist_reasonable, 1)';
+desc_1_selected = desc_1_selected(desc_1_selected_Q, :);
+desc_2_selected = desc_2_selected(desc_2_selected_Q, :);
 %% Merge edge voxels
 merge_box_size = [6, 6, 2];
+% Threshold for local displacement standard deviation
+% Correspond to 0.5 um
+std_th_1 = 1.5;
+std_th_2 = 1.5;
+std_th_3 = 0.5;
+
+
 if (size(desc_1_selected,1) > th_num_ds_desc ) || (size(desc_2_selected,1) > th_num_ds_desc)
     desc_1_sub_ds = fun_stitching_merge_surface_voxels(desc_1_selected, merge_box_size);
     desc_2_sub_ds = fun_stitching_merge_surface_voxels(desc_2_selected, merge_box_size);
@@ -132,9 +147,8 @@ for iter_bbox = 1 : num_valid_bbox
 %         mean_dis_3(tmp_grid_ind) = dis_list(:,3);
     end
 end
-% Select the matches in the low standard deviation grids ( roughly less
-% than 0.5 micron) 
-grid_low_std_Q = (std_dis_1 <= 1.5) & (std_dis_2 <= 1.5) & (std_dis_3 <= 0.5) & ...
+% Control local displacement variance
+grid_low_std_Q = (std_dis_1 <= std_th_1) & (std_dis_2 <= std_th_2) & (std_dis_3 <= std_th_3) & ...
     ( num_pair > 1 );
 grid_low_std_voxel_idx = cat(2, grid_idx_cell_array{grid_low_std_Q});
 X_stable = X_(grid_low_std_voxel_idx,:);
@@ -142,6 +156,7 @@ Y_stable = Y_(grid_low_std_voxel_idx,:);
 % The initial estimation of the stage position is quite close. If the
 % displacement between Y_ and tY_ is too large, it must be a wrong
 % matching
+% Control global displacement variance
 disp_X_Y = X_stable - Y_stable;
 disp_X_Y_med = median(disp_X_Y);
 disp_X_Y_dev = disp_X_Y - disp_X_Y_med;
