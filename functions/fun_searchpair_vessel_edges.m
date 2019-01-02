@@ -46,13 +46,6 @@ desc_2_selected_Q = all(bsxfun(@ge, desc_2_sub_shifted, overlap_bbox_min) & bsxf
 
 desc_1_selected = descriptor_1_sub(desc_1_selected_Q,:);
 desc_2_selected = desc_2_sub_shifted(desc_2_selected_Q,:);
-%% Descriptor pair selection: The distance between two point set (after shifted by initial estimation) should not be too large
-tmp_pdist = pdist2(desc_1_selected, desc_2_selected, 'seuclidean', [3,3,1]);
-tmp_pdist_reasonable = tmp_pdist < max_disp_um;
-desc_1_selected_Q = any(tmp_pdist_reasonable, 2);
-desc_2_selected_Q = any(tmp_pdist_reasonable, 1)';
-desc_1_selected = desc_1_selected(desc_1_selected_Q, :);
-desc_2_selected = desc_2_selected(desc_2_selected_Q, :);
 %% Merge edge voxels
 merge_box_size = [6, 6, 2];
 % Threshold for local displacement standard deviation
@@ -69,6 +62,14 @@ else
     desc_1_sub_ds = desc_1_selected;
     desc_2_sub_ds = desc_2_selected;
 end
+% Descriptor pair selection: The distance between two point set (after shifted by initial estimation) should not be too large
+tmp_pdist = pdist2(desc_1_sub_ds, desc_2_sub_ds, 'seuclidean', [3,3,1]);
+tmp_pdist_reasonable = tmp_pdist < max_disp_um;
+desc_1_selected_Q = any(tmp_pdist_reasonable, 2);
+desc_2_selected_Q = any(tmp_pdist_reasonable, 1)';
+desc_1_sub_ds = desc_1_sub_ds(desc_1_selected_Q, :);
+desc_2_sub_ds = desc_2_sub_ds(desc_2_selected_Q, :);
+
 if isempty(desc_1_sub_ds) || isempty(desc_2_sub_ds)
     X_stable = [];
     Y_stable = [];

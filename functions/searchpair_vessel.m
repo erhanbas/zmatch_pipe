@@ -34,7 +34,7 @@ if ~isfield(matchparams, 'viz')
 else
     vis_Q = matchparams.viz;
 end
-
+[X_,Y_] = deal([]);
 
 pixshift = pixshiftinit;
 % Inconsistancy threshold
@@ -92,6 +92,9 @@ while ~flag_stop && iter <= num_search_option% run a search
     % If too much descriptor, prefer the long one
     % Maybe better solution: chop skeletons into short pieces and sample uniformly in
     % the overlapping space. 
+    if isempty(des_1_feat) || isempty(des_2_feat)
+        return;
+    end
     if size(des_1_sub, 1) > total_num_descriptor
         tmp_idx_list = fun_bin_data_to_idx_list(des_1_feat);
         tmp_seg_length = cellfun(@numel, tmp_idx_list);
@@ -152,6 +155,9 @@ while ~flag_stop && iter <= num_search_option% run a search
         % Check if the matched points are from the same connected
         % components or not. A good matches should contains many voxel
         % pairs from single connected components
+        if isempty(X_) || isempty(Y_)
+            return;
+        end
         X_ind = sub2ind(tile_size, X_(:,1), X_(:,2), X_(:,3));
         Y_ind = sub2ind(tile_size, Y_(:,1) + pixshift(1), Y_(:,2) + pixshift(2), Y_(:,3) + pixshift(3));
         X_label = full(X_ind_2_label(X_ind));
@@ -414,7 +420,11 @@ function [bin_cell_array, varargout] = fun_bin_data_to_idx_list(data)
 %   varargout: unique data value 
 % Author: Xiang Ji ( Department of Physics, UC San Diego )
 % Nov 28, 2018
-
+if isempty(data)
+    bin_cell_array = [];
+    varargout{1} = [];
+    return;
+end
 num_data = numel(data);
 if ~issorted(data)
     [data, idx_list ]= sort(data, 'ascend');
