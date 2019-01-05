@@ -26,10 +26,22 @@ function [X_stable,Y_stable,rate, pixshift] = fun_searchpair_vessel_edges(descri
 
 % If the number of available feature points is larger than this number,
 % downsample the point cloud.
-th_num_ds_desc = 30000; 
-max_disp_um = 15;
+% th_num_ds_desc = 15000; 
+% max_disp_um = 15;
+X_stable = [];
+Y_stable = [];
+rate = 0;
 % pixshift = [20, 0, 143];
 pixshift =  pixshiftinit;
+[~, iadj] = max(pixshiftinit);
+switch iadj
+    case 1
+        max_disp_pixel = [15, 10, 5];
+    case 2
+        max_disp_pixel = [10, 15, 5];
+    case 3
+        max_disp_pixel = [30, 30, 20];
+end
 %% Transform the descriptor according to the estimated shift first
 desc_2_sub_shifted = bsxfun(@plus, descriptor_2_sub, pixshift);
 desc_2_sub_shifted_max = max(desc_2_sub_shifted, [], 1);
@@ -46,44 +58,49 @@ desc_2_selected_Q = all(bsxfun(@ge, desc_2_sub_shifted, overlap_bbox_min) & bsxf
 
 desc_1_selected = descriptor_1_sub(desc_1_selected_Q,:);
 desc_2_selected = desc_2_sub_shifted(desc_2_selected_Q,:);
+if isempty(desc_1_selected) || isempty(desc_2_selected)
+    return;
+end
 %% Merge edge voxels
-merge_box_size = [6, 6, 2];
+merge_box_size = [6,6,2];
 % Threshold for local displacement standard deviation
 % Correspond to 0.5 um
 std_th_1 = 1.5;
 std_th_2 = 1.5;
 std_th_3 = 0.5;
+desc_1_sub_ds = fun_stitching_merge_surface_voxels(desc_1_selected, merge_box_size);
+desc_2_sub_ds = fun_stitching_merge_surface_voxels(desc_2_selected, merge_box_size);
+%% Descriptor pair selection: 
+% The distance between two point set (after shifted by initial estimation)
+% should not be too large
+tmp_pdist = pdist2(desc_1_sub_ds(:,1), desc_2_sub_ds(:,1));
+%     tmp_pdist3 = (tmp_pdist.^2) ./3;
+tmp_pdist_reasonable = tmp_pdist < max_disp_pixel(1);
+tmp_pdist = pdist2(desc_1_sub_ds(:,2), desc_2_sub_ds(:,2));
+%     tmp_pdist3 = tmp_pdist3 + (tmp_pdist.^2) ./3;
+tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel(2);
+tmp_pdist = pdist2(desc_1_sub_ds(:,3), desc_2_sub_ds(:,3));
+%     tmp_pdist3 = sqrt(tmp_pdist3 + (tmp_pdist.^2));
+tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel(3);
+desc_1_close_neighbor_Q = any(tmp_pdist_reasonable, 2);
+desc_2_close_neighbor_Q = any(tmp_pdist_reasonable, 1)';
 
-
-if (size(desc_1_selected,1) > th_num_ds_desc ) || (size(desc_2_selected,1) > th_num_ds_desc)
-    desc_1_sub_ds = fun_stitching_merge_surface_voxels(desc_1_selected, merge_box_size);
-    desc_2_sub_ds = fun_stitching_merge_surface_voxels(desc_2_selected, merge_box_size);
-else
-    desc_1_sub_ds = desc_1_selected;
-    desc_2_sub_ds = desc_2_selected;
-end
-% Descriptor pair selection: The distance between two point set (after shifted by initial estimation) should not be too large
-tmp_pdist = pdist2(desc_1_sub_ds, desc_2_sub_ds, 'seuclidean', [3,3,1]);
-tmp_pdist_reasonable = tmp_pdist < max_disp_um;
-desc_1_selected_Q = any(tmp_pdist_reasonable, 2);
-desc_2_selected_Q = any(tmp_pdist_reasonable, 1)';
-desc_1_sub_ds = desc_1_sub_ds(desc_1_selected_Q, :);
-desc_2_sub_ds = desc_2_sub_ds(desc_2_selected_Q, :);
+desc_1_sub_ds = desc_1_sub_ds(desc_1_close_neighbor_Q, :);
+desc_2_sub_ds = desc_2_sub_ds(desc_2_close_neighbor_Q, :);
 
 if isempty(desc_1_sub_ds) || isempty(desc_2_sub_ds)
-    X_stable = [];
-    Y_stable = [];
-    rate = 0;
     return;
 end    
-%% Non-regid matching with low rank approximation
+%% Point cloud registration 
+% The purpose of point cloud registration is to find the correspondance.
+% Will it be better to use affine transformation for the x-y matching? 
 projectionThr = 5;
 optimopts = statset('nlinfit');
 optimopts.RobustWgtFun = 'bisquare';
 opt.method='nonrigid_lowrank';
 opt.beta=6;            % the width of Gaussian kernel (smoothness)
 opt.lambda=16;          % regularization weight
-opt.viz=0;              % show every iteration
+opt.viz=false;              % show every iteration
 opt.outliers=0.9;       % use 0.7 noise weight
 opt.numeig = 100;       % Number of eigenvectors for low rank appriximation 
 opt.eigfgt = 0;         % Use fast gaussian transformation for computing eigenvectors
@@ -99,6 +116,29 @@ matchparams.model = @(p,y) p(3) - p(2).*((y-p(1)).^2); % FC model
 matchparams.debug = false;
 matchparams.viz = false;
 [rate, X_, Y_, tY_] = vessel_descriptorMatchforz(desc_1_sub_ds, desc_2_sub_ds, pixshift, matchparams);
+%% Affine transformation 
+% projectionThr = 5;
+% opt.method='affine';
+% opt.beta=6;            % the width of Gaussian kernel (smoothness)
+% opt.lambda=16;          % regularization weight
+% opt.viz=1;              % show every iteration
+% opt.outliers=0.9;       % use 0.7 noise weight
+% opt.max_it = 50;        % Maxinum number of iteration 
+% opt.fgt=0;              % do not use FGT (default)
+% opt.tol = 1e-3;         % Error tolorance ( how is it defined? )
+% opt.normalize=1;        % normalize to unit variance and zero mean before registering (default)
+% opt.corresp=1;          % compute correspondence vector at the end of registration (not being estimated by default)
+% matchparams.optimopts = optimopts;
+% matchparams.opt = opt;
+% matchparams.projectionThr = projectionThr;
+% matchparams.model = @(p,y) p(3) - p(2).*((y-p(1)).^2); % FC model
+% matchparams.debug = false;
+% matchparams.viz = true;
+% tic
+% [rate_af, X_af, Y_af, tY_af] = vessel_descriptorMatchforz(desc_1_sub_ds, desc_2_sub_ds, pixshift, matchparams);
+% toc
+
+
 %% Matched point selection 
 %  If the matching is bad, return empay matching directly
 if rate < 0.8 || isempty(X_) || isempty(Y_)
@@ -165,7 +205,7 @@ disp_X_Y_tol = min(15, max(5,std(single(disp_X_Y_dev),1) * 3));
 disp_inlier = all(abs(disp_X_Y_dev) < disp_X_Y_tol, 2);
 X_stable = X_stable(disp_inlier, :);
 Y_stable = Y_stable(disp_inlier, :);
-pixshift = median(X_stable - Y_stable);
+pixshift = round(median(X_stable - Y_stable));
 %% Visualize matched points
 % figure;
 % subplot(1,3,1)
@@ -236,40 +276,40 @@ pixshift = median(X_stable - Y_stable);
 end
 
 %% Sub function
-function voxel_sub = fun_stitching_merge_surface_voxels(voxel_sub, merge_block_size)
-% fun_stitching_merge_surface_voxels merges the input voxel subscript list
-% by computing the average position of the voxels within the block, whose
-% size is specified by merge_block_size
-% Input: 
-%   voxel_sub: N-by-3, coordinate of the voxel position in 3D space
-%   merge_block_size: 1-by-3 numerical vector, size of the block for merging. 
-% Output: 
-%   voxel_sub: N'-by-3 numerical array after merging
-sub_min = min(voxel_sub, [], 1);
-sub_max = max(voxel_sub, [], 1);
-image_size = sub_max - sub_min + 1;
-downsampled_image_size = ceil(image_size ./ merge_block_size);
-
-num_edge_voxel = zeros(downsampled_image_size);
-mean_edge_pos_1 = zeros(downsampled_image_size);
-mean_edge_pos_2 = zeros(downsampled_image_size);
-mean_edge_pos_3 = zeros(downsampled_image_size);
-bbox_sub = ceil((1 + bsxfun(@minus, voxel_sub, sub_min))./ merge_block_size);
-for iter1 = 1 : size(bbox_sub, 1)
-    num_edge_voxel(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) = ...
-        num_edge_voxel(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) + 1;
-    mean_edge_pos_1(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) = ...
-        mean_edge_pos_1(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) + voxel_sub(iter1, 1);
-    mean_edge_pos_2(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) = ...
-        mean_edge_pos_2(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) + voxel_sub(iter1, 2);
-    mean_edge_pos_3(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) = ...
-        mean_edge_pos_3(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) + voxel_sub(iter1, 3);
-end
-voxel_sub = cat(2, mean_edge_pos_1(:) ./ max(1, num_edge_voxel(:)), ...
-    mean_edge_pos_2(:) ./ max(1, num_edge_voxel(:)), mean_edge_pos_3(:) ./ max(1, num_edge_voxel(:)));
-
-voxel_sub = voxel_sub(all(voxel_sub > 0, 2),:);
-end
+% function voxel_sub = fun_stitching_merge_surface_voxels(voxel_sub, merge_block_size)
+% % fun_stitching_merge_surface_voxels merges the input voxel subscript list
+% % by computing the average position of the voxels within the block, whose
+% % size is specified by merge_block_size
+% % Input: 
+% %   voxel_sub: N-by-3, coordinate of the voxel position in 3D space
+% %   merge_block_size: 1-by-3 numerical vector, size of the block for merging. 
+% % Output: 
+% %   voxel_sub: N'-by-3 numerical array after merging
+% sub_min = min(voxel_sub, [], 1);
+% sub_max = max(voxel_sub, [], 1);
+% image_size = sub_max - sub_min + 1;
+% downsampled_image_size = ceil(image_size ./ merge_block_size);
+% 
+% num_edge_voxel = zeros(downsampled_image_size);
+% mean_edge_pos_1 = zeros(downsampled_image_size);
+% mean_edge_pos_2 = zeros(downsampled_image_size);
+% mean_edge_pos_3 = zeros(downsampled_image_size);
+% bbox_sub = ceil((1 + bsxfun(@minus, voxel_sub, sub_min))./ merge_block_size);
+% for iter1 = 1 : size(bbox_sub, 1)
+%     num_edge_voxel(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) = ...
+%         num_edge_voxel(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) + 1;
+%     mean_edge_pos_1(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) = ...
+%         mean_edge_pos_1(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) + voxel_sub(iter1, 1);
+%     mean_edge_pos_2(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) = ...
+%         mean_edge_pos_2(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) + voxel_sub(iter1, 2);
+%     mean_edge_pos_3(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) = ...
+%         mean_edge_pos_3(bbox_sub(iter1,1), bbox_sub(iter1,2), bbox_sub(iter1,3)) + voxel_sub(iter1, 3);
+% end
+% voxel_sub = cat(2, mean_edge_pos_1(:) ./ max(1, num_edge_voxel(:)), ...
+%     mean_edge_pos_2(:) ./ max(1, num_edge_voxel(:)), mean_edge_pos_3(:) ./ max(1, num_edge_voxel(:)));
+% 
+% voxel_sub = voxel_sub(all(voxel_sub > 0, 2),:);
+% end
 %% Sub function
 function [rate,X_,Y_,tY_] = vessel_descriptorMatchforz(X,Y,pixshift,params)
 %DESCRIPTORMATCH Summary of this function goes here
@@ -311,7 +351,7 @@ tY_= Transform.Y(keeptheseY(disttrim),:);
 rate = sum(disttrim)/length(disttrim);
 % [pixshift rate]
 if rate < .5 % dont need to continue
-    [X_,Y_,~] = deal(0);
+    [X_,Y_] = deal([]);
     return
 end
 Y_ = bsxfun(@minus, Y_, pixshift);

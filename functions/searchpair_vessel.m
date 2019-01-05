@@ -43,6 +43,15 @@ pixshift_search_range = [1; -1] * (5 : 5 : 15);
 num_search_option = numel(pixshift_search_range);
 flag_stop = false;
 iter = 0;
+switch iadj
+    case 1
+        max_disp_pixel = [15, 10, 5];
+    case 2
+        max_disp_pixel = [10, 15, 5];
+    case 3
+        max_disp_pixel = [30, 30, 20]; % I am not sure if these numbers are good 
+end
+
 R_consistant = zeros(1,50);
 R_matched = zeros(1,50);
 nonuniformity = zeros(1,numel(pixshift_search_range));
@@ -52,14 +61,14 @@ rate_ = 0;
 while ~flag_stop && iter <= num_search_option% run a search
     [X_,Y_, ] = deal([]);
     iter = iter + 1;
-    
+%% Shift the pixels according to the stage displacement 
     des_1_sub = des_fixed(:, 1:3);
-    des_1_feat = des_fixed(:, 4);
+    des_1_label = des_fixed(:, 4);
     des_1_sub_min = min(des_1_sub, [], 1);
     des_1_sub_max = max(des_1_sub, [], 1);
     
     des_2_sub_shift = bsxfun(@plus, des_moving_ori(:, 1:3), pixshift);
-    des_2_feat = des_moving_ori(:, 4);
+    des_2_label = des_moving_ori(:, 4);
     des_2_sub_shift_min = min(des_2_sub_shift, [], 1);
     des_2_sub_shift_max = max(des_2_sub_shift, [], 1);
     
@@ -74,60 +83,107 @@ while ~flag_stop && iter <= num_search_option% run a search
     if isempty(des_1_sub) || isempty(des_2_sub_shift)
         return;
     end
-    des_1_feat = des_1_feat(desc_1_selected_Q);
-    des_2_feat = des_2_feat(desc_2_selected_Q);    
-    if isfield(matchparams, 'selected_close_descriptor_pair_Q')
-        if matchparams.selected_close_descriptor_pair_Q
-            pD = pdist2(des_1_sub(:,1:3),des_2_sub_shift(:,1:3));
-            [aa1,bb1]=min(pD,[],1);
-            [~,bb2]=min(pD,[],2);
-            keeptheseY = find([1:length(bb1)]'==bb2(bb1));
-            keeptheseX = bb1(keeptheseY)';
-            disttrim = aa1(keeptheseY)'<25;
-            des_1_sub = des_1_sub(keeptheseX(disttrim),:);
-            des_2_sub_shift = des_2_sub_shift(keeptheseY(disttrim),:);
-        end
-    end
+    des_1_label = des_1_label(desc_1_selected_Q);
+    des_2_label = des_2_label(desc_2_selected_Q);    
+%% Remove voxels based on pairwise distance
+    %     if isfield(matchparams, 'selected_close_descriptor_pair_Q')
+%         if matchparams.selected_close_descriptor_pair_Q
+            % Delete voxels far from any all the voxels in the other voxel list
+    tmp_pdist = pdist2(des_1_sub(:,1), des_2_sub_shift(:,1));
+%     tmp_pdist3 = (tmp_pdist.^2) ./3;
+    tmp_pdist_reasonable = tmp_pdist < max_disp_pixel(1);
+    tmp_pdist = pdist2(des_1_sub(:,2), des_2_sub_shift(:,2));
+%     tmp_pdist3 = tmp_pdist3 + (tmp_pdist.^2) ./3;
+    tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel(2);
+    tmp_pdist = pdist2(des_1_sub(:,3), des_2_sub_shift(:,3));
+%     tmp_pdist3 = sqrt(tmp_pdist3 + (tmp_pdist.^2));
+    tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel(3);
+    desc_1_close_neighbor_Q = any(tmp_pdist_reasonable, 2);
+    desc_2_close_neighbor_Q = any(tmp_pdist_reasonable, 1)';
     
-    % If too much descriptor, prefer the long one
-    % Maybe better solution: chop skeletons into short pieces and sample uniformly in
-    % the overlapping space. 
-    if isempty(des_1_feat) || isempty(des_2_feat)
+    des_1_sub = des_1_sub(desc_1_close_neighbor_Q, :);
+    des_2_sub_shift = des_2_sub_shift(desc_2_close_neighbor_Q, :);
+    des_1_label = des_1_label(desc_1_close_neighbor_Q,:);
+    des_2_label = des_2_label(desc_2_close_neighbor_Q,:);
+    % Nearest neighbor distance
+    % Nearest neighbor idx
+    % Remove far apart voxels
+%     tmp_pdist3(~desc_1_close_neighbor_Q, :) = [];
+%     tmp_pdist3(:, ~desc_2_close_neighbor_Q) = [];
+%     [des_1_nn_dist, des_1_nn_idx]  = min(tmp_pdist3, [], 2);
+%     [des_2_nn_dist, des_2_nn_idx]  = min(tmp_pdist3, [], 1);
+%         end
+%     end
+    if isempty(des_1_sub) || isempty(des_2_sub_shift)
         return;
     end
+%% Estimate nearest neighbor connected component and remove outliers
+% If too much descriptor, prefer the long one - actually, maybe also
+% the connected components with consistent distance to this
+% corresponding nearest neighbors. 
+%     cc_idx_1 = fun_bin_data_to_idx_list(des_1_label);
+%     num_voxel_1 = numel(des_1_label);
+%     num_cc_voxel_1 = cellfun(@length, cc_idx_1);
+%     cc_idx_2 = fun_bin_data_to_idx_list(des_2_label);
+%     num_voxel_2 = numel(des_2_label);
+%     num_cc_voxel_2 = cellfun(@length, cc_idx_2);
+%     % Map from idx to label 
+%     idx_2_label_1 = repelem(1:numel(num_cc_voxel_1), num_cc_voxel_1);
+%     idx_2_label_2 = repelem(1:numel(num_cc_voxel_2), num_cc_voxel_2);
+%     
+%     tmp_cc_label = 10;
+%     tmp_cc_idx = cc_idx_1{tmp_cc_label};
+%     tmp_nn_idx = des_1_nn_idx(tmp_cc_idx);
+%     tmp_nn_idx_unique = unique(tmp_nn_idx);
+%     tmp_matched_ratio = numel(tmp_nn_idx_unique)/numel(tmp_nn_idx);
+%     tmp_nn_label = unique(idx_2_label_2(tmp_nn_idx_unique));
+%     tmp_nn_dist = des_1_nn_dist(tmp_cc_idx);
+%     % visualize the nearest neighbor pair
+%     
+%     tmp_vis_sub_1 = des_1_sub(tmp_cc_idx,:);
+%     tmp_vis_sub_2 = des_2_sub_shift(cat(2, cc_idx_2{tmp_nn_label(1)}),:);
+% %     figure;
+%     clf
+%     scatter3(tmp_vis_sub_1(:,1), tmp_vis_sub_1(:,2), tmp_vis_sub_1(:,3));
+%     hold on 
+%     scatter3(tmp_vis_sub_2(:,1), tmp_vis_sub_2(:,2), tmp_vis_sub_2(:,3));
+%     legend('Tile 1', 'Tile 2');
+%     
+    % Maybe better solution: chop skeletons into short pieces and sample uniformly in
+    % the overlapping space. 
     if size(des_1_sub, 1) > total_num_descriptor
-        tmp_idx_list = fun_bin_data_to_idx_list(des_1_feat);
-        tmp_seg_length = cellfun(@numel, tmp_idx_list);
+        tmp_idx_list_1 = fun_bin_data_to_idx_list(des_1_label);
+        tmp_seg_length = cellfun(@numel, tmp_idx_list_1);
         [tmp_seg_length, tmp_seg_idx] = sort(tmp_seg_length, 'descend');
         tmp_cumsum_voxel = cumsum(tmp_seg_length);
         [~, cutoff_idx] = min(abs(tmp_cumsum_voxel - total_num_descriptor));
-        des_1_sub = des_1_sub(cat(2, tmp_idx_list{tmp_seg_idx(1:cutoff_idx)}), :);
+        des_1_sub = des_1_sub(cat(2, tmp_idx_list_1{tmp_seg_idx(1:cutoff_idx)}), :);
         tmp_label = repelem(1:cutoff_idx, tmp_seg_length(1:cutoff_idx));
     else
-        tmp_label = des_1_feat;
+        tmp_label = des_1_label;
     end    
     tmp_ind = sub2ind(tile_size, des_1_sub(:,1), des_1_sub(:,2), des_1_sub(:,3));
     X_ind_2_label = sparse(tmp_ind, ones(length(tmp_ind),1), tmp_label, prod(tile_size),1);
     
     if size(des_2_sub_shift, 1) > total_num_descriptor
-        tmp_idx_list = fun_bin_data_to_idx_list(des_2_feat);
-        tmp_seg_length = cellfun(@numel, tmp_idx_list);
+        tmp_idx_list_2 = fun_bin_data_to_idx_list(des_2_label);
+        tmp_seg_length = cellfun(@numel, tmp_idx_list_2);
         [tmp_seg_length, tmp_seg_idx] = sort(tmp_seg_length, 'descend');
         tmp_cumsum_voxel = cumsum(tmp_seg_length);
         [~, cutoff_idx] = min(abs(tmp_cumsum_voxel - total_num_descriptor));
-        des_2_sub_shift = des_2_sub_shift(cat(2, tmp_idx_list{tmp_seg_idx(1:cutoff_idx)}), :);
+        des_2_sub_shift = des_2_sub_shift(cat(2, tmp_idx_list_2{tmp_seg_idx(1:cutoff_idx)}), :);
         tmp_label = repelem(1:cutoff_idx, tmp_seg_length(1:cutoff_idx));
     else
-        tmp_label = des_2_feat;
+        tmp_label = des_2_label;
     end
     tmp_ind = sub2ind(tile_size, des_2_sub_shift(:,1), des_2_sub_shift(:,2), des_2_sub_shift(:,3));
     Y_ind_2_label = sparse(tmp_ind, ones(length(tmp_ind),1), tmp_label, prod(tile_size),1);
     
-    %%
+%% Coherent Point drift
     if size(des_1_sub,1)<3 || size(des_2_sub_shift,1)<3% not enough sample to match
         flag_stop = 1;
     else
-        %% check uniformity of data
+        % check uniformity of data
         nbins = [2 2];
         edges = {};
         for ii = 2:-1:1%length(dims)%[1 2 3],
@@ -149,8 +205,7 @@ while ~flag_stop && iter <= num_search_option% run a search
         else
             nonuniformity(iter) = 0;
         end
-        
-        %% Match the descriptor
+        % Match the descriptor
         [rate, X_, Y_, ~] = descriptorMatchforz(des_1_sub,des_2_sub_shift,pixshift,iadj,matchparams);
         % Check if the matched points are from the same connected
         % components or not. A good matches should contains many voxel
@@ -158,6 +213,7 @@ while ~flag_stop && iter <= num_search_option% run a search
         if isempty(X_) || isempty(Y_)
             return;
         end
+%% Matched voxel pair selection 
         X_ind = sub2ind(tile_size, X_(:,1), X_(:,2), X_(:,3));
         Y_ind = sub2ind(tile_size, Y_(:,1) + pixshift(1), Y_(:,2) + pixshift(2), Y_(:,3) + pixshift(3));
         X_label = full(X_ind_2_label(X_ind));
@@ -264,8 +320,6 @@ while ~flag_stop && iter <= num_search_option% run a search
                 else
                     X_ = X_0;
                     Y_ = Y_0;
-%                     pixshift = pixshiftinit;
-%                     pixshift(iadj) = pixshift(iadj) + pixshift_search_range(search_idx - 2);
                     pixshift = median(X_ - Y_);
                     flag_stop = true;
                     rate = R_matched(iter-1);
@@ -273,14 +327,18 @@ while ~flag_stop && iter <= num_search_option% run a search
             end
         else
             flag_stop = true;
-            pixshift = median(X_ - Y_);
+            pixshift = round(median(X_ - Y_));
         end
         % store pairs
         rate_ = rate;
         nonuniformity = nonuniformity(1 : iter);
     end
+    if isempty(X_) 
+        pixshift = pixshiftinit;
+        return
+    end
 end
-if vis_Q
+if vis_Q && ~isempty(X_)
     figure;
     scatter3(X_(:,1), X_(:,2), X_(:,3));
     hold on 
@@ -435,7 +493,7 @@ end
 bin_size = 0;
 bin_data = data(1);
 bin_idx = zeros(1, round(num_data/2));
-est_num_bin = 500;
+est_num_bin = numel(data);
 bin_value_list = zeros(est_num_bin,1);
 bin_value_list(1) = data(1);
 bin_cell_array = cell(est_num_bin,1);
