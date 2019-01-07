@@ -45,11 +45,11 @@ flag_stop = false;
 iter = 0;
 switch iadj
     case 1
-        max_disp_pixel = [15, 10, 5];
+        max_disp_pixel_yxz = [15, 10, 5];
     case 2
-        max_disp_pixel = [10, 15, 5];
+        max_disp_pixel_yxz = [10, 15, 5];
     case 3
-        max_disp_pixel = [30, 30, 20]; % I am not sure if these numbers are good 
+        max_disp_pixel_yxz = [30, 30, 20]; % I am not sure if these numbers are good 
 end
 
 R_consistant = zeros(1,50);
@@ -91,13 +91,13 @@ while ~flag_stop && iter <= num_search_option% run a search
             % Delete voxels far from any all the voxels in the other voxel list
     tmp_pdist = pdist2(des_1_sub(:,1), des_2_sub_shift(:,1));
 %     tmp_pdist3 = (tmp_pdist.^2) ./3;
-    tmp_pdist_reasonable = tmp_pdist < max_disp_pixel(1);
+    tmp_pdist_reasonable = tmp_pdist < max_disp_pixel_yxz(1);
     tmp_pdist = pdist2(des_1_sub(:,2), des_2_sub_shift(:,2));
 %     tmp_pdist3 = tmp_pdist3 + (tmp_pdist.^2) ./3;
-    tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel(2);
+    tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(2);
     tmp_pdist = pdist2(des_1_sub(:,3), des_2_sub_shift(:,3));
 %     tmp_pdist3 = sqrt(tmp_pdist3 + (tmp_pdist.^2));
-    tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel(3);
+    tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(3);
     desc_1_close_neighbor_Q = any(tmp_pdist_reasonable, 2);
     desc_2_close_neighbor_Q = any(tmp_pdist_reasonable, 1)';
     

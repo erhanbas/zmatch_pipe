@@ -20,7 +20,7 @@ function varargout = pointmatch_vessel(tile1,tile2,acqusitionfolder1,acqusitionf
 % Modified from Erhan Bas's pointmatch by Xiang Ji (xiangji.ucsd@gmail.com)
 % Date: Dec 14, 2018
 
-
+debug = false;
 
 %% Complied file setting
 % compiledfunc = '/groups/mousebrainmicro/home/base/CODE/MATLAB/compiledfunctions/pointmatch/pointmatch';
@@ -70,15 +70,15 @@ elseif nargin <8
 elseif nargin <9
     exitcode = 0;
 end
-%% Other preparations
+%% Variable conversion
 if ischar(pixshift)
     pixshift = eval(pixshift); % pass initialization
 end
 if ischar(maxnumofdesc)
-    maxnumofdesc=str2double(maxnumofdesc);
+    maxnumofdesc = str2double(maxnumofdesc);
 end
 if ischar(exitcode)
-    exitcode=str2double(exitcode);
+    exitcode = str2double(exitcode);
 end
 %% Use the scope position to estimate the pixel shift
 if length(ch)>1
@@ -90,7 +90,7 @@ varargout{1} = exitcode;
 tile_size_xyz = [1024,1536,251];
 empty_pixel_size_xyz = [40, 30, 0];
 projectionThr = 5;
-debug = 0;
+
 
 tag = 'XYZ';
 scopefile1 = readScopeFile(acqusitionfolder1);
@@ -105,7 +105,14 @@ stgshift = 1000*([scopefile2.x_mm scopefile2.y_mm scopefile2.z_mm]-[scopefile1.x
 if all(pixshift==0)
     pixshift = round(stgshift.*(tile_size_xyz-1)./imsize_um);
 end
-paireddescriptor.stage_pixshift = pixshift;
+paireddescriptor = struct;
+paireddescriptor.pixshift_stage = pixshift;
+[paireddescriptor.exist_blv, paireddescriptor.matchrate_edge, ...
+    paireddescriptor.X_edge, paireddescriptor.Y_edge, ...
+    paireddescriptor.pixshift_edge, paireddescriptor.pixshift_mask_fft, ...
+    paireddescriptor.matchrate_mask_fft, paireddescriptor.pixshift_skl,...
+    paireddescriptor.matchrate,paireddescriptor.X_skl, paireddescriptor.Y_skl, ...
+    paireddescriptor.uni] = deal([]);
 %%
 % check if input exists
 % For the compatibility of the original pipeline
@@ -126,58 +133,65 @@ if ~isfile(tile1) || ~isfile(tile2)
 else
     descriptor_1 = load(tile1);
     descriptor_2 = load(tile2);
-%     if (descriptor_1.record.exist_blv || descriptor_2.record.exist_blv) || 1
-        % 1. Test if the large vessel mask is in the overlapping region -
-        % store the information.
-        % 2. Load the raw data, use 2d masked fft registration to estimate the
-        % translational transformation.
-        % 3. Use the estimation to initialize the edge registration
-        
-        % Load images
-    tic
-    disp('Masked FFT registration');
-    tile_image_1 = deployedtiffread(descriptor_1.record.fp_image);
-    tile_image_2 = deployedtiffread(descriptor_2.record.fp_image);
-    % Flip tiles
-    tile_image_1 = flip(flip(tile_image_1, 1), 2);
-    tile_image_2 = flip(flip(tile_image_2, 1), 2);
-    % The pixshift is [x_shift, y_shift, z_shift], while the bounding
-    % box etc are in [y, x, z]. Flip the pixshift for intensity
-    % registration here.
-    descriptor_valid_bbox_mmxx = descriptor_1.record.valid_bbox_mmxx;
-    pixshift_yxz = pixshift([2,1,3]);
-    empty_pixel_shift = [0,0,0];
-    empty_pixel_shift(iadj) = empty_pixel_size_xyz(iadj);
-    empty_pixel_shift_yxz = empty_pixel_shift([2,1,3]);
-    tile_size_yxz = tile_size_xyz([2,1,3]);
-    mask_seach_expansion = 0;
-    overlap_bbox_1_mmxx = [1, 1, 1, tile_size_yxz];
-    overlap_bbox_2_mmxx = [1, 1, 1, tile_size_yxz];
-    if gridshift(iadj) > 0
-        overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), pixshift_yxz + empty_pixel_shift_yxz) - mask_seach_expansion;
-        overlap_bbox_2_mmxx(4:6) = tile_size_yxz - (pixshift_yxz) + mask_seach_expansion;
-    elseif gridshift(iadj) < 0
-        overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3),  - (pixshift_yxz - empty_pixel_shift_yxz)) - mask_seach_expansion;
-        overlap_bbox_1_mmxx(4:6) = tile_size_yxz + ( pixshift_yxz )+ mask_seach_expansion;
+    %% for debug - fixing the bug in vessel descriptor, should be removed later
+    if isempty(descriptor_1.record)
+        disp('Missing field: fp_image. Infer image path automatically');
+        descriptor_1.record.fp_image = strrep(strrep(tile1, 'stage_2_descriptor_output', 'raw_data'), 'descriptor.mat', '.tif');
     end
-    overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
-    overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
-    overlap_bbox_1_mmxx(4:6) = min(overlap_bbox_1_mmxx(4:6), descriptor_valid_bbox_mmxx(4:6));
-    overlap_bbox_2_mmxx(4:6) = min(overlap_bbox_2_mmxx(4:6), descriptor_valid_bbox_mmxx(4:6));
-    overlap_bbox_1_mmll = overlap_bbox_1_mmxx;
-    overlap_bbox_1_mmll(4:6) = overlap_bbox_1_mmxx(4:6) - overlap_bbox_1_mmxx(1:3) + 1;
-    overlap_bbox_2_mmll = overlap_bbox_2_mmxx;
-    overlap_bbox_2_mmll(4:6) = overlap_bbox_2_mmxx(4:6) - overlap_bbox_2_mmxx(1:3) + 1;
-    %         3D Masked FFT
-    est_int_th = 1.5e4;
-    test_image_1 = crop_bbox3(tile_image_1, overlap_bbox_1_mmll, 'default');
-    test_image_2 = crop_bbox3(tile_image_2, overlap_bbox_2_mmll, 'default');
-    [tmp_translation, tmp_max_xcorr, tmp_c] = MaskedTranslationRegistration(test_image_1, test_image_2, ...
-        test_image_1 > est_int_th , test_image_2 > est_int_th, [20,20,10]);
-    fft_pixshift_xyz = overlap_bbox_1_mmll([2,1,3]) - overlap_bbox_2_mmll([2,1,3]) + tmp_translation';
-    paireddescriptor.pixshift_mask_fft = fft_pixshift_xyz;
-    paireddescriptor.matchrate_mask_fft = tmp_max_xcorr;
+    if isempty(descriptor_2.record)
+        disp('Missing field: fp_image. Infer image path automatically');
+        descriptor_2.record.fp_image = strrep(strrep(tile2, 'stage_2_descriptor_output', 'raw_data'), 'descriptor.mat', '.tif');
+    end
+%% Intensity based masekd fft registration  
+    disp('Masked FFT translation registration');
+    tic
+    [paireddescriptor.pixshift_mask_fft, paireddescriptor.matchrate_mask_fft] = fun_masked_fft_match_vessel(descriptor_1, descriptor_2, pixshift, iadj, debug);
     toc
+%     tic
+%     disp('Masked FFT registration');
+%     tile_image_1 = deployedtiffread(descriptor_1.record.fp_image);
+%     tile_image_2 = deployedtiffread(descriptor_2.record.fp_image);
+%     % Flip tiles
+%     tile_image_1 = flip(flip(tile_image_1, 1), 2);
+%     tile_image_2 = flip(flip(tile_image_2, 1), 2);
+%     % The pixshift is [x_shift, y_shift, z_shift], while the bounding
+%     % box etc are in [y, x, z]. Flip the pixshift for intensity
+%     % registration here.
+%     descriptor_valid_bbox_mmxx = descriptor_1.record.valid_bbox_mmxx;
+%     descriptor_valid_bbox_mmxx(3) = max(descriptor_valid_bbox_mmxx(3), 40);
+%     pixshift_yxz = pixshift([2,1,3]);
+%     empty_pixel_shift = [0,0,0];
+%     empty_pixel_shift(iadj) = empty_pixel_size_xyz(iadj);
+%     empty_pixel_shift_yxz = empty_pixel_shift([2,1,3]);
+%     tile_size_yxz = tile_size_xyz([2,1,3]);
+%     mask_seach_expansion = 0;
+%     overlap_bbox_1_mmxx = [1, 1, 1, tile_size_yxz];
+%     overlap_bbox_2_mmxx = [1, 1, 1, tile_size_yxz];
+%     if gridshift(iadj) > 0
+%         overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), pixshift_yxz + empty_pixel_shift_yxz) - mask_seach_expansion;
+%         overlap_bbox_2_mmxx(4:6) = tile_size_yxz - (pixshift_yxz) + mask_seach_expansion;
+%     elseif gridshift(iadj) < 0
+%         overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3),  - (pixshift_yxz - empty_pixel_shift_yxz)) - mask_seach_expansion;
+%         overlap_bbox_1_mmxx(4:6) = tile_size_yxz + ( pixshift_yxz )+ mask_seach_expansion;
+%     end
+%     overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
+%     overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
+%     overlap_bbox_1_mmxx(4:6) = min(overlap_bbox_1_mmxx(4:6), descriptor_valid_bbox_mmxx(4:6));
+%     overlap_bbox_2_mmxx(4:6) = min(overlap_bbox_2_mmxx(4:6), descriptor_valid_bbox_mmxx(4:6));
+%     overlap_bbox_1_mmll = overlap_bbox_1_mmxx;
+%     overlap_bbox_1_mmll(4:6) = overlap_bbox_1_mmxx(4:6) - overlap_bbox_1_mmxx(1:3) + 1;
+%     overlap_bbox_2_mmll = overlap_bbox_2_mmxx;
+%     overlap_bbox_2_mmll(4:6) = overlap_bbox_2_mmxx(4:6) - overlap_bbox_2_mmxx(1:3) + 1;
+%     %         3D Masked FFT
+%     est_int_th = 1.5e4;
+%     test_image_1 = crop_bbox3(tile_image_1, overlap_bbox_1_mmll, 'default');
+%     test_image_2 = crop_bbox3(tile_image_2, overlap_bbox_2_mmll, 'default');
+%     [tmp_translation, tmp_max_xcorr, ~] = MaskedTranslationRegistration(test_image_1, test_image_2, ...
+%         test_image_1 > est_int_th , test_image_2 > est_int_th, [20,20,40]);
+%     fft_pixshift_xyz = overlap_bbox_1_mmll([2,1,3]) - overlap_bbox_2_mmll([2,1,3]) + tmp_translation';
+%     paireddescriptor.pixshift_mask_fft = fft_pixshift_xyz;
+%     paireddescriptor.matchrate_mask_fft = tmp_max_xcorr;
+%     toc
         % Visualization 
 %         vis_pixshift_xyz = fft_pixshift_xyz;
 %         vis_translation = vis_pixshift_xyz - overlap_bbox_1_mmll([2,1,3]) + overlap_bbox_2_mmll([2,1,3]);
@@ -186,9 +200,9 @@ else
 %         vis_image_1 = test_image_1(:, :, vis_sec);
 %         vis_image_2 = test_image_2(:, :, vis_sec - vis_translation(3));
 %         vis_image_2_moved = test_image_2_moved(:, :, vis_sec);
-% %         vis_image_1 = max(test_image_1, [], 3);
-% %         vis_image_2 = max(test_image_2, [], 3);
-% %         vis_image_2_moved = max(test_image_2_moved, [], 3);
+%         vis_image_1 = max(test_image_1, [], 3);
+%         vis_image_2 = max(test_image_2, [], 3);
+%         vis_image_2_moved = max(test_image_2_moved, [], 3);
 %         figure;
 %         subplot(1,4,1);
 %         imshow(vis_image_1);
@@ -223,34 +237,21 @@ else
 %         pixshift = paireddescriptor.pixshift_mask_fft;
 %     end
 %% Skeleton point registration
-    if isempty(descriptor_1.skl_sub) || isempty(descriptor_2.skl_sub)
-        rate_ = 0;
-        X_skel = [];
-        Y_skel = [];
-        uni = 0;
-    else
+    if isfield(descriptor_1, 'skl_sub') && ~isempty(descriptor_1.skl_sub) && isfield(descriptor_2, 'skl_sub') && ~isempty(descriptor_2.skl_sub)
         desc1_skel = cat(2, correctTiles(descriptor_1.skl_sub,tile_size_xyz), descriptor_1.skl_label);
         desc2_skel = cat(2, correctTiles(descriptor_2.skl_sub,tile_size_xyz), descriptor_2.skl_label);
         matchparams = modelParams(projectionThr,debug); % Setting parameters for the matching algorithm
         matchparams.max_num_desc = maxnumofdesc;
         matchparams.scan_z_shift_Q = true;
+        matchparams.vis = true;
+        matchparams.scan_pixshift_Q = true;
         if length(iadj)~=1 || max(iadj)>3
             error('not 6 direction neighbor')
         end
         %% MATCHING
         disp('Vessel skeleton CPD');
         tic
-        [X_skel,Y_skel,rate_, pixshift_skl,nonuniformity] = searchpair_vessel(desc1_skel,desc2_skel,pixshift,iadj,tile_size_xyz,matchparams);
-        if isempty(X_skel)
-            % I am not sure if this step is very useful or not, sicne CPD
-            % can drift points by quite a lot. 
-            disp('No points found. Relax the outliers tolorance and search for matched pairs again');
-            matchparams_ = matchparams;
-            matchparams_.opt.outliers = .5;
-            matchparams_.selected_close_descriptor_pair_Q = true;
-            matchparams_.scan_z_shift_Q = false;
-            [X_skel,Y_skel,rate_,pixshift_skl, nonuniformity] = searchpair_vessel(desc1_skel, desc2_skel, pixshift, iadj, tile_size_xyz, matchparams_);
-        end
+        [X_skel,Y_skel,rate_, pixshift_skl, nonuniformity] = searchpair_vessel(desc1_skel,desc2_skel,pixshift,iadj,tile_size_xyz,matchparams);
         toc        
         if ~isempty(X_skel)
             X_skel = correctTiles(X_skel,tile_size_xyz);
@@ -259,25 +260,30 @@ else
         uni = mean(nonuniformity)<=.5;
         paireddescriptor.pixshift_skl = pixshift_skl;
         paireddescriptor.matchrate = rate_;
-        paireddescriptor.X = X_skel;
-        paireddescriptor.Y = Y_skel;
+        paireddescriptor.X_skl = X_skel;
+        paireddescriptor.Y_skl = Y_skel;
         paireddescriptor.uni = uni;
         if rate_ > 0.95 && size(X_skel, 1) > 100
-            pixshift = pixshift_skl;
+            pixshift_0_fft = pixshift_skl;
+        elseif paireddescriptor.matchrate_mask_fft > 0.8
+            pixshift_0_fft = paireddescriptor.pixshift_mask_fft;
         else
-            pixshift = paireddescriptor.pixshift_mask_fft;
+            pixshift_0_fft = pixshift;
         end
+    else
+        [X_skel, Y_skel] = deal([]); 
     end
 %% If both the descriptor contains boundary large vessels 
 
-    if (descriptor_1.record.compute_edge && descriptor_2.record.compute_edge)
+    if isfield(descriptor_1.record, 'compute_edge') && descriptor_1.record.compute_edge && ...
+            isfield(descriptor_2.record, 'compute_edge') && descriptor_2.record.compute_edge
         desc1_edge = descriptor_1.edge_sub;
         desc2_edge = descriptor_2.edge_sub;
         desc1_edge = correctTiles(desc1_edge, tile_size_xyz);
         desc2_edge = correctTiles(desc2_edge, tile_size_xyz);
         disp('Vessel edge CPD');
         tic
-        [X_edge, Y_edge, rate_edge, pixshift_edge] = fun_searchpair_vessel_edges(desc1_edge, desc2_edge, pixshift);
+        [X_edge, Y_edge, rate_edge, pixshift_edge] = fun_searchpair_vessel_edges(desc1_edge, desc2_edge, pixshift_0_fft);
         toc
         if ~isempty(X_edge)
             X_edge = correctTiles(X_edge, tile_size_xyz);
@@ -289,13 +295,11 @@ else
         paireddescriptor.Y_edge = Y_edge;
         paireddescriptor.pixshift_edge = pixshift_edge;        
     else
-        paireddescriptor.matchrate_edge = [];
-        paireddescriptor.X_edge = [];
-        paireddescriptor.Y_edge = [];
-        paireddescriptor.pixshift_edge = [];
+        paireddescriptor.exist_blv = false;
     end
 end
-
+paireddescriptor.X = cat(2, paireddescriptor.X_skl, paireddescriptor.X_edge);
+paireddescriptor.Y = cat(2, paireddescriptor.Y_skl, paireddescriptor.Y_edge);
 if nargin>4
     if ~isfolder(outfold)
         warning('Output folder does not exist. Create folder');

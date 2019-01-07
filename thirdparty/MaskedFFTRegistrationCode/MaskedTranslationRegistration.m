@@ -27,8 +27,7 @@ function [transform, maxC, C_valid] = MaskedTranslationRegistration(fixedImage,m
 %   Author: Dirk Padfield, GE Global Research, padfield@research.ge.com
 
 % Modified by Xiang Ji, UC San Diego, xiangji.ucsd@gmail.com
-% 1. Generalize to 3D masked FFT registration and add restriction by
-% allowing choosing array padding size
+% 1. Generalize to 3D masked FFT registration and add searching range limits 
 % 2. Accelerate the computation with nearly no lost in accuracy in the
 % computation of the correlation array. 
 if nargin < 5

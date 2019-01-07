@@ -36,11 +36,11 @@ pixshift =  pixshiftinit;
 [~, iadj] = max(pixshiftinit);
 switch iadj
     case 1
-        max_disp_pixel = [15, 10, 5];
+        max_disp_pixel_yxz = [15, 10, 5];
     case 2
-        max_disp_pixel = [10, 15, 5];
+        max_disp_pixel_yxz = [10, 15, 5];
     case 3
-        max_disp_pixel = [30, 30, 20];
+        max_disp_pixel_yxz = [30, 30, 20];
 end
 %% Transform the descriptor according to the estimated shift first
 desc_2_sub_shifted = bsxfun(@plus, descriptor_2_sub, pixshift);
@@ -75,13 +75,13 @@ desc_2_sub_ds = fun_stitching_merge_surface_voxels(desc_2_selected, merge_box_si
 % should not be too large
 tmp_pdist = pdist2(desc_1_sub_ds(:,1), desc_2_sub_ds(:,1));
 %     tmp_pdist3 = (tmp_pdist.^2) ./3;
-tmp_pdist_reasonable = tmp_pdist < max_disp_pixel(1);
+tmp_pdist_reasonable = tmp_pdist < max_disp_pixel_yxz(1);
 tmp_pdist = pdist2(desc_1_sub_ds(:,2), desc_2_sub_ds(:,2));
 %     tmp_pdist3 = tmp_pdist3 + (tmp_pdist.^2) ./3;
-tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel(2);
+tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(2);
 tmp_pdist = pdist2(desc_1_sub_ds(:,3), desc_2_sub_ds(:,3));
 %     tmp_pdist3 = sqrt(tmp_pdist3 + (tmp_pdist.^2));
-tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel(3);
+tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(3);
 desc_1_close_neighbor_Q = any(tmp_pdist_reasonable, 2);
 desc_2_close_neighbor_Q = any(tmp_pdist_reasonable, 1)';
 
@@ -137,8 +137,6 @@ matchparams.viz = false;
 % tic
 % [rate_af, X_af, Y_af, tY_af] = vessel_descriptorMatchforz(desc_1_sub_ds, desc_2_sub_ds, pixshift, matchparams);
 % toc
-
-
 %% Matched point selection 
 %  If the matching is bad, return empay matching directly
 if rate < 0.8 || isempty(X_) || isempty(Y_)
