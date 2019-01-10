@@ -20,8 +20,8 @@ function varargout = pointmatch_vessel(tile1,tile2,acqusitionfolder1,acqusitionf
 % Modified from Erhan Bas's pointmatch by Xiang Ji (xiangji.ucsd@gmail.com)
 % Date: Dec 14, 2018
 
-debug = false;
-
+debug_mode = false;
+% dbstop if error
 %% Complied file setting
 % compiledfunc = '/groups/mousebrainmicro/home/base/CODE/MATLAB/compiledfunctions/pointmatch/pointmatch';
 % if ~exist(fileparts(compiledfunc),'dir')
@@ -88,7 +88,6 @@ else
 end
 varargout{1} = exitcode;
 tile_size_xyz = [1024,1536,251];
-empty_pixel_size_xyz = [40, 30, 0];
 projectionThr = 5;
 
 
@@ -105,6 +104,9 @@ stgshift = 1000*([scopefile2.x_mm scopefile2.y_mm scopefile2.z_mm]-[scopefile1.x
 if all(pixshift==0)
     pixshift = round(stgshift.*(tile_size_xyz-1)./imsize_um);
 end
+pixshift_0_edge = pixshift;
+
+
 paireddescriptor = struct;
 paireddescriptor.pixshift_stage = pixshift;
 [paireddescriptor.exist_blv, paireddescriptor.matchrate_edge, ...
@@ -145,80 +147,105 @@ else
 %% Intensity based masekd fft registration  
     disp('Masked FFT translation registration');
     tic
-    [paireddescriptor.pixshift_mask_fft, paireddescriptor.matchrate_mask_fft] = fun_masked_fft_match_vessel(descriptor_1, descriptor_2, pixshift, iadj, debug);
-    toc
-%     tic
-%     disp('Masked FFT registration');
-%     tile_image_1 = deployedtiffread(descriptor_1.record.fp_image);
-%     tile_image_2 = deployedtiffread(descriptor_2.record.fp_image);
-%     % Flip tiles
-%     tile_image_1 = flip(flip(tile_image_1, 1), 2);
-%     tile_image_2 = flip(flip(tile_image_2, 1), 2);
-%     % The pixshift is [x_shift, y_shift, z_shift], while the bounding
-%     % box etc are in [y, x, z]. Flip the pixshift for intensity
-%     % registration here.
-%     descriptor_valid_bbox_mmxx = descriptor_1.record.valid_bbox_mmxx;
-%     descriptor_valid_bbox_mmxx(3) = max(descriptor_valid_bbox_mmxx(3), 40);
-%     pixshift_yxz = pixshift([2,1,3]);
-%     empty_pixel_shift = [0,0,0];
-%     empty_pixel_shift(iadj) = empty_pixel_size_xyz(iadj);
-%     empty_pixel_shift_yxz = empty_pixel_shift([2,1,3]);
-%     tile_size_yxz = tile_size_xyz([2,1,3]);
-%     mask_seach_expansion = 0;
-%     overlap_bbox_1_mmxx = [1, 1, 1, tile_size_yxz];
-%     overlap_bbox_2_mmxx = [1, 1, 1, tile_size_yxz];
-%     if gridshift(iadj) > 0
-%         overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), pixshift_yxz + empty_pixel_shift_yxz) - mask_seach_expansion;
-%         overlap_bbox_2_mmxx(4:6) = tile_size_yxz - (pixshift_yxz) + mask_seach_expansion;
-%     elseif gridshift(iadj) < 0
-%         overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3),  - (pixshift_yxz - empty_pixel_shift_yxz)) - mask_seach_expansion;
-%         overlap_bbox_1_mmxx(4:6) = tile_size_yxz + ( pixshift_yxz )+ mask_seach_expansion;
-%     end
-%     overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
-%     overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
-%     overlap_bbox_1_mmxx(4:6) = min(overlap_bbox_1_mmxx(4:6), descriptor_valid_bbox_mmxx(4:6));
-%     overlap_bbox_2_mmxx(4:6) = min(overlap_bbox_2_mmxx(4:6), descriptor_valid_bbox_mmxx(4:6));
-%     overlap_bbox_1_mmll = overlap_bbox_1_mmxx;
-%     overlap_bbox_1_mmll(4:6) = overlap_bbox_1_mmxx(4:6) - overlap_bbox_1_mmxx(1:3) + 1;
-%     overlap_bbox_2_mmll = overlap_bbox_2_mmxx;
-%     overlap_bbox_2_mmll(4:6) = overlap_bbox_2_mmxx(4:6) - overlap_bbox_2_mmxx(1:3) + 1;
-%     %         3D Masked FFT
-%     est_int_th = 1.5e4;
-%     test_image_1 = crop_bbox3(tile_image_1, overlap_bbox_1_mmll, 'default');
-%     test_image_2 = crop_bbox3(tile_image_2, overlap_bbox_2_mmll, 'default');
-%     [tmp_translation, tmp_max_xcorr, ~] = MaskedTranslationRegistration(test_image_1, test_image_2, ...
-%         test_image_1 > est_int_th , test_image_2 > est_int_th, [20,20,40]);
-%     fft_pixshift_xyz = overlap_bbox_1_mmll([2,1,3]) - overlap_bbox_2_mmll([2,1,3]) + tmp_translation';
-%     paireddescriptor.pixshift_mask_fft = fft_pixshift_xyz;
-%     paireddescriptor.matchrate_mask_fft = tmp_max_xcorr;
+%     [paireddescriptor.pixshift_mask_fft, paireddescriptor.matchrate_mask_fft] = fun_masked_fft_match_vessel(descriptor_1, descriptor_2, pixshift, iadj, debug);
 %     toc
-        % Visualization 
-%         vis_pixshift_xyz = fft_pixshift_xyz;
-%         vis_translation = vis_pixshift_xyz - overlap_bbox_1_mmll([2,1,3]) + overlap_bbox_2_mmll([2,1,3]);
-%         [test_image_2_moved]= imtranslate(test_image_2, vis_translation);
-%         vis_sec = 10;
-%         vis_image_1 = test_image_1(:, :, vis_sec);
-%         vis_image_2 = test_image_2(:, :, vis_sec - vis_translation(3));
-%         vis_image_2_moved = test_image_2_moved(:, :, vis_sec);
-%         vis_image_1 = max(test_image_1, [], 3);
-%         vis_image_2 = max(test_image_2, [], 3);
-%         vis_image_2_moved = max(test_image_2_moved, [], 3);
-%         figure;
-%         subplot(1,4,1);
-%         imshow(vis_image_1);
-%         title('Tile 1 max projection');
-% %         title('Section from tile 1');
-%         subplot(1,4,2)
-%         imshow(vis_image_2);
-% %         title('Section from tile 2');
-%         title('Tile 2 max projection');
-%         subplot(1,4,3)
-%         imshow(vis_image_2_moved);
-%         title('Translated tile 2 max projection');
-% %         title('Translated section from tile 2');
-%         subplot(1,4,4)
-%         imshowpair(vis_image_1, vis_image_2_moved);
-%         title(sprintf('Image overlap: pixel shift (%d, %d, %d)', vis_pixshift_xyz));
+% Parameters
+    empty_pixel_size_xyz = [40, 30, 0]; % The size of the empty region in the raw data from mouselight
+    switch iadj
+        case 1
+            search_range_yxz = [10,15,5];
+        case 2
+            search_range_yxz = [15,10,5];
+        case 3
+            search_range_yxz = [40, 40, 30];
+    end
+    mask_seach_expansion = 0;
+    % Load images
+    if isfield(descriptor_1.record, 'fp_image') && isfile(descriptor_1.record.fp_image)
+        tile_image_fixed = deployedtiffread(descriptor_1.record.fp_image);
+    else
+        error('The input descriptor structure does not contains file path to the raw image');
+    end
+    if isfield(descriptor_2.record, 'fp_image') && isfile(descriptor_2.record.fp_image)
+        tile_image_moving = deployedtiffread(descriptor_2.record.fp_image);
+    else
+        error('The input descriptor structure does not contains file path to the raw image');
+    end
+    % Flip the image
+    tile_image_fixed = flip(flip(tile_image_fixed, 1), 2);
+    tile_image_moving = flip(flip(tile_image_moving, 1), 2);
+    % The pixshift is [x_shift, y_shift, z_shift], while the bounding
+    % box etc are in [y, x, z]. Flip the pixshift for intensity
+    % registration here.
+    if isfield(descriptor_1.record, 'valid_bbox_mmxx')
+        descriptor_valid_bbox_mmxx = descriptor_1.record.valid_bbox_mmxx;
+    else
+        descriptor_valid_bbox_mmxx = [8, 45, 9, 1529, 986, 251];
+    %     descriptor_valid_bbox_mmxx = [90, 120, 40, 1529, 900, 251];
+    end
+
+    pixshift_yxz0 = pixshift([2,1,3]);
+    empty_pixel_shift = [0,0,0];
+    empty_pixel_shift(iadj) = empty_pixel_size_xyz(iadj);
+    empty_pixel_shift_yxz = empty_pixel_shift([2,1,3]);
+    tile_size_yxz = size(tile_image_fixed);
+
+    overlap_bbox_1_mmxx = [1, 1, 1, tile_size_yxz];
+    overlap_bbox_2_mmxx = [1, 1, 1, tile_size_yxz];
+    if pixshift(iadj) > 0
+        overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), pixshift_yxz0 + empty_pixel_shift_yxz) - mask_seach_expansion;
+        overlap_bbox_2_mmxx(4:6) = tile_size_yxz - (pixshift_yxz0) + mask_seach_expansion;
+    elseif pixshift(iadj) < 0
+        overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3),  - (pixshift_yxz0 - empty_pixel_shift_yxz)) - mask_seach_expansion;
+        overlap_bbox_1_mmxx(4:6) = tile_size_yxz + ( pixshift_yxz0 ) + mask_seach_expansion;
+    end
+    overlap_bbox_1_mmxx(1:3) = max(overlap_bbox_1_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
+    overlap_bbox_2_mmxx(1:3) = max(overlap_bbox_2_mmxx(1:3), descriptor_valid_bbox_mmxx(1:3));
+    overlap_bbox_1_mmxx(4:6) = min(overlap_bbox_1_mmxx(4:6), descriptor_valid_bbox_mmxx(4:6));
+    overlap_bbox_2_mmxx(4:6) = min(overlap_bbox_2_mmxx(4:6), descriptor_valid_bbox_mmxx(4:6));
+    overlap_bbox_1_mmll = overlap_bbox_1_mmxx;
+    overlap_bbox_1_mmll(4:6) = overlap_bbox_1_mmxx(4:6) - overlap_bbox_1_mmxx(1:3) + 1;
+    overlap_bbox_2_mmll = overlap_bbox_2_mmxx;
+    overlap_bbox_2_mmll(4:6) = overlap_bbox_2_mmxx(4:6) - overlap_bbox_2_mmxx(1:3) + 1;
+    % 3D Masked FFT
+    test_image_fixed = crop_bbox3(tile_image_fixed, overlap_bbox_1_mmll, 'default');
+    test_image_moving = crop_bbox3(tile_image_moving, overlap_bbox_2_mmll, 'default');
+
+    est_int_th = 1.5e4;
+    [translation_xyz, paireddescriptor.matchrate_mask_fft, ~] = MaskedTranslationRegistration(test_image_fixed, test_image_moving, ...
+        test_image_fixed > est_int_th , test_image_moving > est_int_th, search_range_yxz);
+    paireddescriptor.pixshift_mask_fft = overlap_bbox_1_mmll([2,1,3]) - overlap_bbox_2_mmll([2,1,3]) + translation_xyz';
+%     toc
+    % Visualization
+    if debug_mode
+        vis_pixshift_xyz = paireddescriptor.pixshift_mask_fft;
+        vis_translation = vis_pixshift_xyz - overlap_bbox_1_mmll([2,1,3]) + overlap_bbox_2_mmll([2,1,3]);
+        [test_image_2_moved]= imtranslate(test_image_2, vis_translation);
+        vis_sec = 10;
+        vis_image_1 = test_image_1(:, :, vis_sec);
+        vis_image_2 = test_image_2(:, :, vis_sec - vis_translation(3));
+        vis_image_2_moved = test_image_2_moved(:, :, vis_sec);
+        vis_image_1 = max(test_image_1, [], 3);
+        vis_image_2 = max(test_image_2, [], 3);
+        vis_image_2_moved = max(test_image_2_moved, [], 3);
+        figure;
+        subplot(1,4,1);
+        imshow(vis_image_1);
+        title('Tile 1 max projection');
+        %         title('Section from tile 1');
+        subplot(1,4,2)
+        imshow(vis_image_2);
+        %         title('Section from tile 2');
+        title('Tile 2 max projection');
+        subplot(1,4,3)
+        imshow(vis_image_2_moved);
+        title('Translated tile 2 max projection');
+        %         title('Translated section from tile 2');
+        subplot(1,4,4)
+        imshowpair(vis_image_1, vis_image_2_moved);
+        title(sprintf('Image overlap: pixel shift (%d, %d, %d)', vis_pixshift_xyz));
+    end
+    toc
 %         figure;
 %         subplot(1,4,1)
 %         imshow(tile_image_1(:, :, vis_sec));
@@ -238,9 +265,9 @@ else
 %     end
 %% Skeleton point registration
     if isfield(descriptor_1, 'skl_sub') && ~isempty(descriptor_1.skl_sub) && isfield(descriptor_2, 'skl_sub') && ~isempty(descriptor_2.skl_sub)
-        desc1_skel = cat(2, correctTiles(descriptor_1.skl_sub,tile_size_xyz), descriptor_1.skl_label);
-        desc2_skel = cat(2, correctTiles(descriptor_2.skl_sub,tile_size_xyz), descriptor_2.skl_label);
-        matchparams = modelParams(projectionThr,debug); % Setting parameters for the matching algorithm
+        desc1_skel = cat(2, correctTiles(descriptor_1.skl_sub,tile_size_xyz), descriptor_1.skl_label(:));
+        desc2_skel = cat(2, correctTiles(descriptor_2.skl_sub,tile_size_xyz), descriptor_2.skl_label(:));
+        matchparams = modelParams(projectionThr,debug_mode); % Setting parameters for the matching algorithm
         matchparams.max_num_desc = maxnumofdesc;
         matchparams.scan_z_shift_Q = true;
         matchparams.vis = true;
@@ -263,12 +290,10 @@ else
         paireddescriptor.X_skl = X_skel;
         paireddescriptor.Y_skl = Y_skel;
         paireddescriptor.uni = uni;
-        if rate_ > 0.95 && size(X_skel, 1) > 100
-            pixshift_0_fft = pixshift_skl;
+        if rate_ > 0.85 && size(X_skel, 1) > 100
+            pixshift_0_edge = pixshift_skl;
         elseif paireddescriptor.matchrate_mask_fft > 0.8
-            pixshift_0_fft = paireddescriptor.pixshift_mask_fft;
-        else
-            pixshift_0_fft = pixshift;
+            pixshift_0_edge = paireddescriptor.pixshift_mask_fft;            
         end
     else
         [X_skel, Y_skel] = deal([]); 
@@ -279,11 +304,11 @@ else
             isfield(descriptor_2.record, 'compute_edge') && descriptor_2.record.compute_edge
         desc1_edge = descriptor_1.edge_sub;
         desc2_edge = descriptor_2.edge_sub;
-        desc1_edge = correctTiles(desc1_edge, tile_size_xyz);
-        desc2_edge = correctTiles(desc2_edge, tile_size_xyz);
+        desc1_edge = cat(2, correctTiles(desc1_edge, tile_size_xyz), descriptor_1.edge_gradient);
+        desc2_edge = cat(2, correctTiles(desc2_edge, tile_size_xyz), descriptor_2.edge_gradient);
         disp('Vessel edge CPD');
         tic
-        [X_edge, Y_edge, rate_edge, pixshift_edge] = fun_searchpair_vessel_edges(desc1_edge, desc2_edge, pixshift_0_fft);
+        [X_edge, Y_edge, rate_edge, pixshift_edge] = fun_searchpair_vessel_edges(desc1_edge, desc2_edge, pixshift_0_edge);
         toc
         if ~isempty(X_edge)
             X_edge = correctTiles(X_edge, tile_size_xyz);
@@ -298,8 +323,8 @@ else
         paireddescriptor.exist_blv = false;
     end
 end
-paireddescriptor.X = cat(2, paireddescriptor.X_skl, paireddescriptor.X_edge);
-paireddescriptor.Y = cat(2, paireddescriptor.Y_skl, paireddescriptor.Y_edge);
+paireddescriptor.X = cat(1, paireddescriptor.X_skl, paireddescriptor.X_edge);
+paireddescriptor.Y = cat(1, paireddescriptor.Y_skl, paireddescriptor.Y_edge);
 if nargin>4
     if ~isfolder(outfold)
         warning('Output folder does not exist. Create folder');
@@ -342,7 +367,7 @@ if nargin>4
 end
 
 end
-%% Subfunctions
+% Subfunctions
 function [Iout] = deployedtiffread(fileName,slices)
 %DEPLOYEDTIFFREAD Summary of this function goes here
 % 

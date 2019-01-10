@@ -1,4 +1,4 @@
-function [X_stable,Y_stable,rate, pixshift] = fun_searchpair_vessel_edges(descriptor_1_sub,descriptor_2_sub,pixshiftinit)
+function [X_stable,Y_stable,rate, pixshift] = fun_searchpair_vessel_edges(descriptor_1,descriptor_2,pixshiftinit)
 % fun_searchpair_vessel_edges apply Coherent Point Drift for two point
 % cloud (surface) registration. Since surface point cloud is dense, the
 % point clouds are downsampled by mergering nearby points and reolaced by
@@ -31,6 +31,7 @@ function [X_stable,Y_stable,rate, pixshift] = fun_searchpair_vessel_edges(descri
 X_stable = [];
 Y_stable = [];
 rate = 0;
+max_edge_voxel_point = 2e4;
 % pixshift = [20, 0, 143];
 pixshift =  pixshiftinit;
 [~, iadj] = max(pixshiftinit);
@@ -43,6 +44,12 @@ switch iadj
         max_disp_pixel_yxz = [30, 30, 20];
 end
 %% Transform the descriptor according to the estimated shift first
+assert(~isempty(descriptor_1), 'descriptor_1 is empty');
+assert(~isempty(descriptor_2), 'descriptor_2 is empty');
+descriptor_1_sub = descriptor_1(:,1:3);
+descriptor_2_sub = descriptor_2(:,1:3);
+desc_1_gradient = descriptor_1(:, 4);
+desc_2_gradient = descriptor_2(:, 4);
 desc_2_sub_shifted = bsxfun(@plus, descriptor_2_sub, pixshift);
 desc_2_sub_shifted_max = max(desc_2_sub_shifted, [], 1);
 desc_2_sub_shifted_min = min(desc_2_sub_shifted, [], 1);
@@ -56,9 +63,10 @@ overlap_bbox_min = max(desc_2_sub_shifted_min, desc_1_sub_min) + 10;
 desc_1_selected_Q = all(bsxfun(@ge, descriptor_1_sub, overlap_bbox_min) & bsxfun(@le, descriptor_1_sub, overlap_bbox_max), 2);
 desc_2_selected_Q = all(bsxfun(@ge, desc_2_sub_shifted, overlap_bbox_min) & bsxfun(@le, desc_2_sub_shifted, overlap_bbox_max), 2);
 
-desc_1_selected = descriptor_1_sub(desc_1_selected_Q,:);
-desc_2_selected = desc_2_sub_shifted(desc_2_selected_Q,:);
-if isempty(desc_1_selected) || isempty(desc_2_selected)
+desc_1_ds = cat(2, descriptor_1_sub(desc_1_selected_Q,:), desc_1_gradient(desc_1_selected_Q));
+desc_2_ds = cat(2, desc_2_sub_shifted(desc_2_selected_Q,:), desc_2_gradient(desc_2_selected_Q));
+
+if isempty(desc_1_ds) || isempty(desc_2_ds)
     return;
 end
 %% Merge edge voxels
@@ -68,28 +76,43 @@ merge_box_size = [6,6,2];
 std_th_1 = 1.5;
 std_th_2 = 1.5;
 std_th_3 = 0.5;
-desc_1_sub_ds = fun_stitching_merge_surface_voxels(desc_1_selected, merge_box_size);
-desc_2_sub_ds = fun_stitching_merge_surface_voxels(desc_2_selected, merge_box_size);
+desc_1_ds = fun_stitching_merge_surface_voxels(desc_1_ds, merge_box_size);
+desc_2_ds = fun_stitching_merge_surface_voxels(desc_2_ds, merge_box_size);
 %% Descriptor pair selection: 
 % The distance between two point set (after shifted by initial estimation)
 % should not be too large
-tmp_pdist = pdist2(desc_1_sub_ds(:,1), desc_2_sub_ds(:,1));
+tmp_pdist = pdist2(desc_1_ds(:,1), desc_2_ds(:,1));
 %     tmp_pdist3 = (tmp_pdist.^2) ./3;
 tmp_pdist_reasonable = tmp_pdist < max_disp_pixel_yxz(1);
-tmp_pdist = pdist2(desc_1_sub_ds(:,2), desc_2_sub_ds(:,2));
+tmp_pdist = pdist2(desc_1_ds(:,2), desc_2_ds(:,2));
 %     tmp_pdist3 = tmp_pdist3 + (tmp_pdist.^2) ./3;
 tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(2);
-tmp_pdist = pdist2(desc_1_sub_ds(:,3), desc_2_sub_ds(:,3));
+tmp_pdist = pdist2(desc_1_ds(:,3), desc_2_ds(:,3));
 %     tmp_pdist3 = sqrt(tmp_pdist3 + (tmp_pdist.^2));
 tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(3);
+clear tmp_pdist
 desc_1_close_neighbor_Q = any(tmp_pdist_reasonable, 2);
 desc_2_close_neighbor_Q = any(tmp_pdist_reasonable, 1)';
+clear tmp_pdist_reasonable
+desc_1_ds = desc_1_ds(desc_1_close_neighbor_Q, :);
+desc_2_ds = desc_2_ds(desc_2_close_neighbor_Q, :);
 
-desc_1_sub_ds = desc_1_sub_ds(desc_1_close_neighbor_Q, :);
-desc_2_sub_ds = desc_2_sub_ds(desc_2_close_neighbor_Q, :);
-
-if isempty(desc_1_sub_ds) || isempty(desc_2_sub_ds)
+if isempty(desc_1_ds) || isempty(desc_2_ds)
     return;
+else
+    if size(desc_1_ds, 1) > max_edge_voxel_point 
+        % Further select voxels with large gradients
+        [~, desc_1_idx] = sort(desc_1_ds(:, 4), 'descend');
+        desc_1_ds = desc_1_ds(desc_1_idx(1:max_edge_voxel_point), 1:3);
+    else
+        desc_1_ds = desc_1_ds(:, 1:3);
+    end
+    if size(desc_2_ds, 1) > max_edge_voxel_point
+        [~, desc_2_idx] = sort(desc_2_ds(:, 4), 'descend');
+        desc_2_ds = desc_2_ds(desc_2_idx(1:max_edge_voxel_point), 1:3);
+    else
+        desc_2_ds = desc_2_ds(:, 1:3);
+    end
 end    
 %% Point cloud registration 
 % The purpose of point cloud registration is to find the correspondance.
@@ -102,7 +125,8 @@ opt.beta=6;            % the width of Gaussian kernel (smoothness)
 opt.lambda=16;          % regularization weight
 opt.viz=false;              % show every iteration
 opt.outliers=0.9;       % use 0.7 noise weight
-opt.numeig = 100;       % Number of eigenvectors for low rank appriximation 
+min_num_voxel = min(size(desc_1_ds, 1), size(desc_2_ds, 1));
+opt.numeig = min(100, min_num_voxel);       % Number of eigenvectors for low rank appriximation 
 opt.eigfgt = 0;         % Use fast gaussian transformation for computing eigenvectors
 opt.max_it = 50;        % Maxinum number of iteration 
 opt.fgt=0;              % do not use FGT (default)
@@ -115,7 +139,7 @@ matchparams.projectionThr = projectionThr;
 matchparams.model = @(p,y) p(3) - p(2).*((y-p(1)).^2); % FC model
 matchparams.debug = false;
 matchparams.viz = false;
-[rate, X_, Y_, tY_] = vessel_descriptorMatchforz(desc_1_sub_ds, desc_2_sub_ds, pixshift, matchparams);
+[rate, X_, Y_, tY_] = vessel_descriptorMatchforz(desc_1_ds, desc_2_ds, pixshift, matchparams);
 %% Affine transformation 
 % projectionThr = 5;
 % opt.method='affine';

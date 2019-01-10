@@ -58,6 +58,7 @@ nonuniformity = zeros(1,numel(pixshift_search_range));
 % clear nonuniformity
 search_idx = 1;
 rate_ = 0;
+search_by_brute_force_Q = true;
 while ~flag_stop && iter <= num_search_option% run a search
     [X_,Y_, ] = deal([]);
     iter = iter + 1;
@@ -100,7 +101,7 @@ while ~flag_stop && iter <= num_search_option% run a search
     tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(3);
     desc_1_close_neighbor_Q = any(tmp_pdist_reasonable, 2);
     desc_2_close_neighbor_Q = any(tmp_pdist_reasonable, 1)';
-    
+    clear tmp_pdist tmp_pdist_reasonable
     des_1_sub = des_1_sub(desc_1_close_neighbor_Q, :);
     des_2_sub_shift = des_2_sub_shift(desc_2_close_neighbor_Q, :);
     des_1_label = des_1_label(desc_1_close_neighbor_Q,:);
@@ -263,73 +264,99 @@ while ~flag_stop && iter <= num_search_option% run a search
         R_matched(iter) = rate;
         R_consistant(iter) = consistent_rate;
         % The displacement between the matched voxels should be consistant.
-        % Remove the outlier pairs whose displacements are significantly
+        % Remove the outlier pairs whose displacements are significant
         % different from the median displacement of the matched pairs
         disp_X_Y = X_ - Y_;
         disp_X_Y_med = median(disp_X_Y,1);
         disp_X_Y_dev = bsxfun(@minus, disp_X_Y , disp_X_Y_med);
-        disp_X_Y_tol = min(15, max(5,std(single(disp_X_Y_dev),1) * 3));
+        disp_X_Y_dev_std = std(single(disp_X_Y_dev), 1);
+        disp_X_Y_tol = min(15, max(5,disp_X_Y_dev_std * 3));
         disp_kept = all(bsxfun(@le, abs(disp_X_Y_dev), disp_X_Y_tol), 2);
         X_ = X_(disp_kept, :);
-        Y_ = Y_(disp_kept, :);        
-        
+        Y_ = Y_(disp_kept, :); 
+        if ~isempty(X_) && size(X_,1) > 50
+            search_by_brute_force_Q = false;
+        else 
+            search_by_brute_force_Q = true;
+        end
+%% Re-estiamte the initial pixel shift - Brute force        
         if matchparams.scan_pixshift_Q && rate < 0.95
             disp('Matching not good enough. Shift the overlapping region and search for pairs again');
-            if iter == 1
-                X_0 = X_;
-                Y_0 = Y_;
-                pixshift = pixshiftinit;
-                pixshift(iadj) = pixshift(iadj) + pixshift_search_range(1);                
-            elseif iter == 2
-                X_1 = X_;
-                Y_1 = Y_;
-                pixshift = pixshiftinit;
-                pixshift(iadj) = pixshift(iadj) + pixshift_search_range(2);
-            elseif iter == 3
-                if R_consistant(3) > R_consistant(1) && R_consistant(3) > R_consistant(2)
-                    % Update the best matched pair
+            if search_by_brute_force_Q
+                if iter == 1
                     X_0 = X_;
                     Y_0 = Y_;
-                    search_idx = 4;
                     pixshift = pixshiftinit;
-                    pixshift(iadj) = pixshift(iadj) + pixshift_search_range(search_idx);
-                elseif R_consistant(2) > R_consistant(1) && R_consistant(2) > R_consistant(3)
-                    X_0 = X_1;
-                    Y_0 = Y_1;
-                    search_idx = 3;
+                    pixshift(iadj) = pixshift(iadj) + pixshift_search_range(1);
+                elseif iter == 2
+                    X_1 = X_;
+                    Y_1 = Y_;
                     pixshift = pixshiftinit;
-                    pixshift(iadj) = pixshift(iadj) + pixshift_search_range(search_idx);
-                else 
-                    flag_stop = true;
-                    X_ = X_0;
-                    Y_ = Y_0;
-                    rate = R_matched(1);
-                    pixshift = median(X_ - Y_);
+                    pixshift(iadj) = pixshift(iadj) + pixshift_search_range(2);
+                elseif iter == 3
+                    if R_consistant(3) > R_consistant(1) && R_consistant(3) > R_consistant(2)
+                        % Update the best matched pair
+                        X_0 = X_;
+                        Y_0 = Y_;
+                        search_idx = 4;
+                        pixshift = pixshiftinit;
+                        pixshift(iadj) = pixshift(iadj) + pixshift_search_range(search_idx);
+                    elseif R_consistant(2) > R_consistant(1) && R_consistant(2) > R_consistant(3)
+                        X_0 = X_1;
+                        Y_0 = Y_1;
+                        search_idx = 3;
+                        pixshift = pixshiftinit;
+                        pixshift(iadj) = pixshift(iadj) + pixshift_search_range(search_idx);
+                    else
+                        flag_stop = true;
+                        X_ = X_0;
+                        Y_ = Y_0;
+                        rate = R_matched(1);
+                        pixshift = median(X_ - Y_);
+                    end
+                else
+                    if R_consistant(iter) > R_consistant(iter - 1) && (search_idx + 2) <= num_search_option
+                        search_idx = search_idx + 2;
+                        X_0 = X_;
+                        Y_0 = Y_;
+                        pixshift = pixshiftinit;
+                        pixshift(iadj) = pixshift(iadj) + pixshift_search_range(search_idx);
+                    elseif R_consistant(iter) > R_consistant(iter - 1) && (search_idx + 2) > num_search_option
+                        rate = R_matched(iter-1);
+                        flag_stop = true;
+                        pixshift = median(X_ - Y_);
+                    else
+                        X_ = X_0;
+                        Y_ = Y_0;
+                        pixshift = median(X_ - Y_);
+                        flag_stop = true;
+                        rate = R_matched(iter-1);
+                    end
                 end
             else
-                if R_consistant(iter) > R_consistant(iter - 1) && (search_idx + 2) <= num_search_option
-                    search_idx = search_idx + 2;
+                if iter == 1
                     X_0 = X_;
                     Y_0 = Y_;
-                    pixshift = pixshiftinit;
-                    pixshift(iadj) = pixshift(iadj) + pixshift_search_range(search_idx);
-                elseif R_consistant(iter) > R_consistant(iter - 1) && (search_idx + 2) > num_search_option
-                    rate = R_matched(iter-1);
-                    flag_stop = true;
-                    pixshift = median(X_ - Y_);
+                    pixshift = disp_X_Y_med;
                 else
-                    X_ = X_0;
-                    Y_ = Y_0;
-                    pixshift = median(X_ - Y_);
-                    flag_stop = true;
-                    rate = R_matched(iter-1);
+                    if R_matched(iter) > R_matched(iter-1)
+                        X_0 = X_;
+                        Y_0 = Y_;
+                        pixshift = disp_X_Y_med;
+                    else
+                        flag_stop = true;
+                        X_ = X_0;
+                        Y_ = Y_0;
+                        rate = R_matched(iter - 1);
+                        pixshift = median(X_ - Y_, 1);
+                    end
                 end
             end
         else
             flag_stop = true;
-            pixshift = round(median(X_ - Y_));
+            pixshift = round(median(disp_X_Y,1));
         end
-        % store pairs
+%% Output
         rate_ = rate;
         nonuniformity = nonuniformity(1 : iter);
     end
