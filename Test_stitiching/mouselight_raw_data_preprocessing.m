@@ -1,22 +1,6 @@
-%% To do list
-% 1. Determine which region to start with. This region should be: 
-%   a. Contains both large surface vessels and capillaries
-%   b. Convenient to test and handled locally 
-% 2. Run the line shift correction to the selected dataset
-% 3. Run skelDescriptor.m in the pipeline-descriptor-master
-% 4. Run the featmach
-% 5. Run the stitching-master
-% 6. Examne the region of bad matching, the data structure of the stitching
-% output 
-% 7. Improve the stitching
-%
-%
-%
-% Read all the raw data position information 
-raw_data_root = '/nfs/birdstore-brainbucket2/Vessel/WholeBrain/mouselight_1/Raw_Green';
+raw_data_root = '/groups/mousebrainmicro/mousebrainmicro/data/acquisition/2018-08-15';
 % Gather raw images file paths
 raw_data_info = dir(fullfile(raw_data_root, '**/*.0.tif'));
-num_file = numel(raw_data_info);
 % Test if the fov_x_size_um and x_size_um are redundant 
 tic
 parfor tile_idx = 1 : numel(raw_data_info)
@@ -27,6 +11,14 @@ parfor tile_idx = 1 : numel(raw_data_info)
     end
 end
 toc
+is_duplicate_file_Q = false(1, numel(raw_data_info));
+for tile_idx = 1 : numel(raw_data_info)
+    if contains(raw_data_info(tile_idx).folder, 'Duplicates')
+        is_duplicate_file_Q(tile_idx) = true;
+    end
+end
+raw_data_info = raw_data_info(~is_duplicate_file_Q);   
+num_file = numel(raw_data_info);
 %% Determine the grid position of the valid tile
 raw_data_grid = struct;
 grid_sub_1 = [raw_data_info.y];
@@ -48,6 +40,7 @@ raw_data_grid.image_filepath_array = cell(raw_data_grid.grid_size);
 
 for tile_idx = 1 : num_file
     if ~grid_imaged_linear_idx(grid_sub(1,tile_idx), grid_sub(2, tile_idx), grid_sub(3, tile_idx))
+        
         grid_imaged_linear_idx(grid_sub(1,tile_idx), grid_sub(2, tile_idx), grid_sub(3, tile_idx)) = tile_idx;
         raw_data_grid.image_filepath_array{grid_sub(1,tile_idx), grid_sub(2, tile_idx), grid_sub(3, tile_idx)} = fullfile(raw_data_info(tile_idx).folder, ...
             raw_data_info(tile_idx).name);
@@ -69,7 +62,7 @@ raw_data_grid.voxel_size = raw_data_grid.FOV_size_um ./ raw_data_grid.block_size
 raw_data_grid.overlap_size_um = [raw_data_info(1).fov_y_overlap_um, ...
     raw_data_info(1).fov_x_overlap_um, raw_data_info(1).fov_z_overlap_um];
 raw_data_grid.overlap_size = round(raw_data_grid.overlap_size_um ./ raw_data_grid.voxel_size);
-save('~/Documents/Github/VesselReconstruction/Metadata/mouselight_1_raw_data_info.mat', '-struct', 'raw_data_grid');
+save('/groups/mousebrainmicro/home/jix/Documents/GitHub/pipeline-featmatch/Test_stitiching/mouselight_1_raw_data_info.mat', '-struct', 'raw_data_grid');
 %% Determine region of interest for testing stitching algorithm
 % Region with both large vessels and capillaries: 
 clc;clear;
