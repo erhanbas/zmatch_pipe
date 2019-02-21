@@ -292,7 +292,7 @@ else
         paireddescriptor.uni = uni;
         if rate_ > 0.85 && size(X_skel, 1) > 100
             pixshift_0_edge = pixshift_skl;
-        elseif paireddescriptor.matchrate_mask_fft > 0.8
+        elseif paireddescriptor.matchrate_mask_fft > 0.85
             pixshift_0_edge = paireddescriptor.pixshift_mask_fft;            
         end
     else
