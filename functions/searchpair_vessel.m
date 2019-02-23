@@ -35,7 +35,7 @@ else
     vis_Q = matchparams.viz;
 end
 [X_,Y_] = deal([]);
-
+pixshiftinit = round(pixshiftinit);
 pixshift = pixshiftinit;
 % Inconsistancy threshold
 th_inconsistancy = 0.2;

@@ -92,7 +92,7 @@ while (iter<max_it) && (ntol > tol) && (sigma2 > 1e-8)
     
     L=L+lambda/2*trace(QtW'*S*QtW);
     ntol=abs((L-L_old)/L);
-    disp([' CPD nonrigid ' st ' (lowrank)  : dL= ' num2str(ntol) ', iter= ' num2str(iter) ' sigma2= ' num2str(sigma2)]);
+%     disp([' CPD nonrigid ' st ' (lowrank)  : dL= ' num2str(ntol) ', iter= ' num2str(iter) ' sigma2= ' num2str(sigma2)]);
 
     % M-step. Solve linear system for W.
     dP=spdiags(P1,0,M,M); % precompute diag(P)
@@ -116,7 +116,7 @@ while (iter<max_it) && (ntol > tol) && (sigma2 > 1e-8)
 
 end
 
-disp('CPD registration succesfully completed.');
+% disp('CPD registration succesfully completed.');
 
 %Find the correspondence, such that Y corresponds to X(C,:)
 if corresp, C=cpd_Pcorrespondence(X,T,sigma2save,outliers); else C=0; end;

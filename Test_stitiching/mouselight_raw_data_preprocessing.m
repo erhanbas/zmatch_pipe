@@ -66,23 +66,22 @@ save('/groups/mousebrainmicro/home/jix/Documents/GitHub/pipeline-featmatch/Test_
 %% Determine region of interest for testing stitching algorithm
 % Region with both large vessels and capillaries: 
 clc;clear;
-raw_data_grid = load('~/Documents/Github/VesselReconstruction/Metadata/mouselight_1_raw_data_info.mat');
-DataManager = FileManager;
-dataset_name = 'ML_stitching';
-for iter_tile = 1 : raw_data_grid.num_tile
-    if ~isempty(strfind(raw_data_grid.image_filepath{iter_tile}, '2018-08-23/01/01567'))
-        tile_idx = iter_tile;
-        test_region_grid_coordinate = raw_data_grid.grid_pos_sub(iter_tile, :);
-    end
-end
+raw_data_grid = load('/groups/mousebrainmicro/home/jix/Documents/GitHub/pipeline-featmatch/Test_stitiching/mouselight_1_raw_data_info.mat');
+% DataManager = FileManager;
+% dataset_name = 'ML_stitching';
+% for iter_tile = 1 : raw_data_grid.num_tile
+%     if ~isempty(strfind(raw_data_grid.image_filepath{iter_tile}, '2018-08-23/01/01567'))
+%         tile_idx = iter_tile;
+%         test_region_grid_coordinate = raw_data_grid.grid_pos_sub(iter_tile, :);
+%     end
+% end
 
-for iter_tile = 1 : prod(raw_data_grid.grid_size)
-    if ~isempty(strfind(raw_data_grid.image_filepath_array{iter_tile}, '2018-08-23/01/01567'))
-        tile_ind = iter_tile;
-%         test_region_grid_coordinate = raw_data_grid.grid_pos_sub(:, iter_tile)';
-    end
-end
-
+% for iter_tile = 1 : prod(raw_data_grid.grid_size)
+%     if ~isempty(strfind(raw_data_grid.image_filepath_array{iter_tile}, '2018-08-23/01/01567'))
+%         tile_ind = iter_tile;
+% %         test_region_grid_coordinate = raw_data_grid.grid_pos_sub(:, iter_tile)';
+%     end
+% end
 test_region_grid_coordinate = [6, 19, 58];
 stack = [num2str(test_region_grid_coordinate, '%02d_'), 'cube'];
 num_neighbor = 3;
@@ -90,17 +89,26 @@ test_region_file_list = raw_data_grid.image_filepath_array((test_region_grid_coo
     (test_region_grid_coordinate(2)-num_neighbor):(test_region_grid_coordinate(2)+num_neighbor), ...
     (test_region_grid_coordinate(3)-num_neighbor):(test_region_grid_coordinate(3)+num_neighbor));
 % [idx_1, idx_2, idx_3] = ndgrid(3:5, 14:16, 58:60);
-target_data_folder = DataManager.fp_raw_data_folder(dataset_name, stack);
+% target_data_folder = DataManager.fp_raw_data_folder(dataset_name, stack);
+target_data_folder = fullfile('/nrs/mouselight/Users/jix/pipeline_test', stack, 'raw_data');
 for file_idx = 1 : numel(test_region_file_list)
     tic
     if isempty(test_region_file_list{file_idx})
         continue;
     end
-    [test_folder_name, ~, ~]= fileparts(test_region_file_list{file_idx});
-    target_folder_name = strrep(test_folder_name, '/nfs/birdstore-brainbucket2/Vessel/WholeBrain/mouselight_1/Raw_Green', target_data_folder);
+    source_tiff_fp = test_region_file_list{file_idx};
+    source_acquisition_fp = strrep(source_tiff_fp, '0.tif', 'acquisition');
+    source_microscope_fp = strrep(source_tiff_fp, '0.tif', 'microscope');
+    target_tiff_fp = strrep(source_tiff_fp, '/groups/mousebrainmicro/mousebrainmicro/data/acquisition/2018-08-15', target_data_folder);
+    target_acquisition_fp = strrep(source_acquisition_fp, '/groups/mousebrainmicro/mousebrainmicro/data/acquisition/2018-08-15', target_data_folder);
+    target_microscope_fp = strrep(source_microscope_fp, '/groups/mousebrainmicro/mousebrainmicro/data/acquisition/2018-08-15', target_data_folder);
+    target_folder_name = fileparts(target_tiff_fp);
+
     fprintf('Copying file %s\n', test_folder_name);
     mkdir(target_folder_name);
-    copyfile(test_folder_name, target_folder_name);
+    copyfile(source_tiff_fp, target_tiff_fp);
+    copyfile(source_acquisition_fp, target_acquisition_fp);
+    copyfile(source_microscope_fp, target_microscope_fp);
     toc
 end
 disp('Finish copying files');
