@@ -1,13 +1,13 @@
 clc;clear;
-Vessel_data_root_path = '/data/Vessel/';
+Vessel_data_root_path = '/nrs/mouselight/Users/jix/';
 % raw_data_info = load(fullfile(DataManager.SCRIPT_PATH, 'Metadata',  'mouselight_1_raw_data_info.mat'));
-dataset_folder = fullfile(Vessel_data_root_path, 'ML_stitching', '05_14_58_cube');
+dataset_folder = fullfile(Vessel_data_root_path, 'pipeline_test', '06_19_58_cube');
 raw_data_folder = fullfile(dataset_folder, 'raw_data');
 descriptor_folder = fullfile(dataset_folder, 'stage_2_descriptor_output');
 input_file_path = dir(fullfile(raw_data_folder, ['**', filesep, '*.tif']));
 scope_files = dir(fullfile(raw_data_folder, ['**', filesep, '*.acquisition']));
-scope_file_names = cellfun(@fullfile, {scope_files.folder}, {scope_files.name}, 'UniformOutput', false);
-% Output scope acquisition list ( required by pointmatch_task
+% scope_file_names = cellfun(@fullfile, {scope_files.folder}, {scope_files.name}, 'UniformOutput', false);
+% % Output scope acquisition list ( required by pointmatch_task
 % fid = fopen(fullfile(raw_data_folder, 'scopeacquisitionlist.txt'), 'w');
 % for idx = 1 : numel(scope_file_names)
 %     fprintf(fid, '%s\n', scope_file_names{idx});
@@ -15,14 +15,20 @@ scope_file_names = cellfun(@fullfile, {scope_files.folder}, {scope_files.name}, 
 % fclose(fid);
 
 num_file = numel(input_file_path);
-configfile = '/home/dklab/Documents/Github/MouseLight/pipeline-descriptor-master/configfiles/2018-08-15.cfg';
+configfile = '/groups/mousebrainmicro/home/jix/Documents/GitHub/pipeline-descriptor/configfiles/2018-08-15.cfg';
 %% Generate descriptor
-for file_idx = 1 : num_file
+parfor (file_idx = 1 : num_file, 4)
     output_folder = strrep(input_file_path(file_idx).folder, raw_data_folder, descriptor_folder);
     output_filename = strrep(input_file_path(file_idx).name, '.tif', 'descriptor.mat');
     image_fp = fullfile(input_file_path(file_idx).folder, input_file_path(file_idx).name);
-    fprintf('Processing %s\n', image_fp);
+    fprintf('Processing %s (%d/%d) \n', image_fp, file_idx, num_file);
     output_fp = fullfile(output_folder, output_filename);
+    if isfile(output_fp)
+        tmp_str = load(output_fp, 'record');
+        if ~isempty(tmp_str.record)
+            continue;
+        end
+    end
     if ~isfolder(output_folder)
         mkdir(output_folder);
     end
@@ -31,29 +37,30 @@ for file_idx = 1 : num_file
 %     exit_code = skelDescriptor(image_fp, output_fp, configfile);
     toc
 end
+disp('Finish computing descriptor');
 %% Point Match - between two tiles
-matching_folder = fullfile(dataset_folder, 'stage_3_point_match_output');
-descriptor_filepaths = dir(fullfile(descriptor_folder, '**', '*tor.mat'));
-tile_idx_1 = 3;
-tile_idx_2 = 12;
-tile_descriptor_fp_1 = fullfile(descriptor_filepaths(tile_idx_1).folder, descriptor_filepaths(tile_idx_1).name);
-tile_descriptor_fp_2 = fullfile(descriptor_filepaths(tile_idx_2).folder, descriptor_filepaths(tile_idx_2).name);
-tile_acqusition_fd_1 = scope_files(tile_idx_1).folder;
-tile_acqusition_fd_2 = scope_files(tile_idx_2).folder;
-output_image_folder = strrep(scope_files(tile_idx_1).folder, raw_data_folder, matching_folder);
-if ~isfolder(output_image_folder)
-    mkdir(output_image_folder);
-end
-descriptor_channel = {'0'};
-pixshift = [0,0,0];
-[~] = pointmatch_vessel(tile_descriptor_fp_1, tile_descriptor_fp_2, tile_acqusition_fd_1, tile_acqusition_fd_2, ...
-    output_image_folder,pixshift, descriptor_channel);
+% matching_folder = fullfile(dataset_folder, 'stage_3_point_match_output');
+% descriptor_filepaths = dir(fullfile(descriptor_folder, '**', '*tor.mat'));
+% tile_idx_1 = 3;
+% tile_idx_2 = 12;
+% tile_descriptor_fp_1 = fullfile(descriptor_filepaths(tile_idx_1).folder, descriptor_filepaths(tile_idx_1).name);
+% tile_descriptor_fp_2 = fullfile(descriptor_filepaths(tile_idx_2).folder, descriptor_filepaths(tile_idx_2).name);
+% tile_acqusition_fd_1 = scope_files(tile_idx_1).folder;
+% tile_acqusition_fd_2 = scope_files(tile_idx_2).folder;
+% output_image_folder = strrep(scope_files(tile_idx_1).folder, raw_data_folder, matching_folder);
+% if ~isfolder(output_image_folder)
+%     mkdir(output_image_folder);
+% end
+% descriptor_channel = {'0'};
+% pixshift = [0,0,0];
+% [~] = pointmatch_vessel(tile_descriptor_fp_1, tile_descriptor_fp_2, tile_acqusition_fd_1, tile_acqusition_fd_2, ...
+%     output_image_folder,pixshift, descriptor_channel);
 %% Input for pointmatch_task_local_vessel
 runlocal = true;
-brain = '05_14_58_cube';
-inputfolder = sprintf('/data/Vessel/ML_stitching/%s/raw_data',brain);
-experimentfolder = sprintf('/data/Vessel/ML_stitching/%s',brain);
-descriptorfolder = fullfile(experimentfolder,'stage_2_descriptor_output');
+brain = '06_19_58_cube';
+inputfolder = raw_data_folder;
+experimentfolder = dataset_folder;
+descriptorfolder = descriptor_folder;
 matfolder = fullfile(experimentfolder,'matfiles/');
 scopefile = fullfile(matfolder,'scopeloc.mat');
 directions = 'Z';

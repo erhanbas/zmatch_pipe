@@ -147,6 +147,7 @@ switch lower(opt.method),
         [C, W, sigma2, iter, T] =cpd_GRBF(X, Y, opt.beta, opt.lambda, opt.max_it, ...
             opt.tol, opt.viz, opt.outliers, opt.fgt, opt.corresp, opt.sigma2, opt.Conn);    
     case 'nonrigid_lowrank'
+        warning('off', 'MATLAB:eigs:IgnoredOptionIssym');
         [C, W, sigma2, iter, T] =cpd_GRBF_lowrank(X, Y, opt.beta, opt.lambda, opt.max_it, opt.tol, opt.viz, opt.outliers, opt.fgt, opt.numeig, opt.eigfgt, opt.corresp, opt.sigma2);
     otherwise
         error('The opt.method value is invalid. Supported methods are: rigid, affine, nonrigid, nonrigid_lowrank');
