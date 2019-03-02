@@ -146,7 +146,7 @@ else
     end
 %% Intensity based masekd fft registration  
     disp('Masked FFT translation registration');
-    tic
+%     tic
 %     [paireddescriptor.pixshift_mask_fft, paireddescriptor.matchrate_mask_fft] = fun_masked_fft_match_vessel(descriptor_1, descriptor_2, pixshift, iadj, debug);
 %     toc
 % Parameters
