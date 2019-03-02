@@ -121,9 +121,9 @@ paireddescriptor.pixshift_stage = pixshift;
 % For the compatibility of the original pipeline
 [~, ~, tmp_ext] = fileparts(tile1);
 if isempty(tmp_ext) %~strcmp(tmp_ext, '.mat')
-    tmp = dir(fullfile(tile1, '*tor.mat'));
+    tmp = dir(fullfile(tile1, '*desc.0.mat'));
     tile1 = fullfile(tmp.folder, tmp.name);
-    tmp = dir(fullfile(tile2, '*tor.mat'));
+    tmp = dir(fullfile(tile2, '*desc.0.mat'));
     tile2 = fullfile(tmp.folder, tmp.name);
 end
 

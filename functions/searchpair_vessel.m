@@ -49,7 +49,7 @@ switch iadj
     case 2
         max_disp_pixel_yxz = [10, 15, 5];
     case 3
-        max_disp_pixel_yxz = [30, 30, 20]; % I am not sure if these numbers are good 
+        max_disp_pixel_yxz = [30, 30, 30]; % I am not sure if these numbers are good 
 end
 
 R_consistant = zeros(1,50);
@@ -68,7 +68,7 @@ while ~flag_stop && iter <= num_search_option% run a search
     des_1_sub_min = min(des_1_sub, [], 1);
     des_1_sub_max = max(des_1_sub, [], 1);
     
-    des_2_sub_shift = bsxfun(@plus, des_moving_ori(:, 1:3), pixshift);
+    des_2_sub_shift = bsxfun(@plus, des_moving_ori(:, 1:3), round(pixshift));
     des_2_label = des_moving_ori(:, 4);
     des_2_sub_shift_min = min(des_2_sub_shift, [], 1);
     des_2_sub_shift_max = max(des_2_sub_shift, [], 1);

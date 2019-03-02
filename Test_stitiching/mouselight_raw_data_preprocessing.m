@@ -90,7 +90,7 @@ test_region_file_list = raw_data_grid.image_filepath_array((test_region_grid_coo
     (test_region_grid_coordinate(3)-num_neighbor):(test_region_grid_coordinate(3)+num_neighbor));
 % [idx_1, idx_2, idx_3] = ndgrid(3:5, 14:16, 58:60);
 % target_data_folder = DataManager.fp_raw_data_folder(dataset_name, stack);
-target_data_folder = fullfile('/nrs/mouselight/Users/jix/pipeline_test', stack, 'raw_data');
+target_data_folder = fullfile('/nrs/mouselight/cluster/classifierOutputs/2018-08-15_xj_2', stack, 'raw_data');
 for file_idx = 1 : numel(test_region_file_list)
     tic
     if isempty(test_region_file_list{file_idx})
@@ -104,9 +104,9 @@ for file_idx = 1 : numel(test_region_file_list)
     target_microscope_fp = strrep(source_microscope_fp, '/groups/mousebrainmicro/mousebrainmicro/data/acquisition/2018-08-15', target_data_folder);
     target_folder_name = fileparts(target_tiff_fp);
 
-    fprintf('Copying file %s\n', test_folder_name);
+    fprintf('Copying file %s\n', target_folder_name);
     mkdir(target_folder_name);
-    copyfile(source_tiff_fp, target_tiff_fp);
+%     copyfile(source_tiff_fp, target_tiff_fp);
     copyfile(source_acquisition_fp, target_acquisition_fp);
     copyfile(source_microscope_fp, target_microscope_fp);
     toc
