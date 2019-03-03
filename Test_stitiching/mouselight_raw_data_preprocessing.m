@@ -1,4 +1,5 @@
 raw_data_root = '/groups/mousebrainmicro/mousebrainmicro/data/acquisition/2018-08-15';
+% raw_data_root = '/nfs/birdstore-brainbucket2/Vessel/WholeBrain/mouselight_1/Raw_Green';
 % Gather raw images file paths
 raw_data_info = dir(fullfile(raw_data_root, '**/*.0.tif'));
 % Test if the fov_x_size_um and x_size_um are redundant 

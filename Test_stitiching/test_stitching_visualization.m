@@ -122,14 +122,14 @@ zlabel('Z');
 % view(2)
 %%
 figure;
-scatter3(desc1(:,1), desc1(:,2), desc1(:,3))
+scatter3(desc_1_ds(:,1), desc_1_ds(:,2), desc_1_ds(:,3))
 hold on 
-scatter3(desc2(:,1), desc2(:,2), desc2(:,3))
+scatter3(desc_2_ds(:,1), desc_2_ds(:,2), desc_2_ds(:,3))
 legend('Tile 1', 'Tile 2');
 xlabel('X');
 ylabel('Y');
 zlabel('Z');
-view(2)
+% view(2)
 %%
 figure;
 scatter3(X_sampled(:,1), X_sampled(:,2), X_sampled(:,3))
@@ -169,10 +169,11 @@ xlabel('X');
 ylabel('Y');
 zlabel('Z');
 %%
-tmpX_edge = tmp_str.onx.X_edge;
-tmpY_edge = tmp_str.onx.Y_edge;
-tmpX_skel = tmp_str.onx.X_skl;
-tmpY_skel = tmp_str.onx.Y_skl;
+tmp_str = paireddescriptor{1}{test_grid_ind}.ony;
+tmpX_edge = tmp_str.X_edge;
+tmpY_edge = tmp_str.Y_edge;
+tmpX_skel = tmp_str.X_skl;
+tmpY_skel = tmp_str.Y_skl;
 
 figure;
 scatter3(tmpX_edge(:,1), tmpX_edge(:,2), tmpX_edge(:,3));
