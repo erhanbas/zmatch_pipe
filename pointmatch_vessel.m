@@ -327,14 +327,14 @@ end
 %% Downsampling
 paireddescriptor.X = cat(1, paireddescriptor.X_skl, paireddescriptor.X_edge);
 paireddescriptor.Y = cat(1, paireddescriptor.Y_skl, paireddescriptor.Y_edge);
-downsample_Q = true;
-if downsample_Q && ~isempty(paireddescriptor.X)
-    sample_block_scale = 20;
-    sample_block_size = [3, 3, 1] .* sample_block_scale;
-    num_sample_per_block = ceil(sample_block_scale/3);
-    [paireddescriptor.X, sampled_ind] = fun_uniform_sample_points_in_space(paireddescriptor.X, sample_block_size, num_sample_per_block, 'random');
-    paireddescriptor.Y = paireddescriptor.Y(sampled_ind, :);
-end
+% downsample_Q = true;
+% if downsample_Q && ~isempty(paireddescriptor.X)
+%     sample_block_scale = 20;
+%     sample_block_size = [3, 3, 1] .* sample_block_scale;
+%     num_sample_per_block = ceil(sample_block_scale/3);
+%     [paireddescriptor.X, sampled_ind] = fun_uniform_sample_points_in_space(paireddescriptor.X, sample_block_size, num_sample_per_block, 'random');
+%     paireddescriptor.Y = paireddescriptor.Y(sampled_ind, :);
+% end
 %%
 if nargin>4
     if ~isfolder(outfold)
