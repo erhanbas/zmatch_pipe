@@ -68,7 +68,7 @@ function  [C, W, sigma2, iter, T] =cpd_GRBF_lowrank(X, Y, beta, lambda, max_it, 
 
 T=Y; iter=0;  ntol=tol+10; W=zeros(M,D);
 if ~exist('sigma2','var') || isempty(sigma2) || (sigma2==0), 
-    sigma2=(M*trace(X'*X)+N*trace(Y'*Y)-2*sum(X)*sum(Y)')/(M*N*D);
+    sigma2=(M*trace(X'*X)+N*trace(Y'*Y)-2*sum(X, 1)*sum(Y, 1)')/(M*N*D);
 end
 sigma2_init=sigma2;
 

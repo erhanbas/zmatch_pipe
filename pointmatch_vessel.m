@@ -88,9 +88,24 @@ else
     ch_desc={ch};
 end
 varargout{1} = exitcode;
+%% Deal with the pipeline bug
+% if isfolder(outfold)
+%     % If the folder already been created, check when this folder is created
+% %     tmp = dir('/nrs/mouselight/pipeline_output/2018-08-15_pipeline_test/stage_3_point_match_output/2018-08-23/02/02711/match-Z.mat');
+%     tmp_fp = fullfile(outfold, 'match-Z.mat');
+%     if isfile(tmp_fp)
+%         tmp = dir(tmp_fp);
+%         tmp_current_time = now;
+%         tmp_time_diff = (tmp_current_time - tmp.datenum);
+%         if tmp_time_diff < 0.08
+%             fprintf('This matches is created within 2 hours. Skip this one\n');
+%             return;
+%         end
+%     end
+% end
+%%
 tile_size_xyz = [1024,1536,251];
 projectionThr = 5;
-
 
 tag = 'XYZ';
 scopefile1 = readScopeFile(acqusitionfolder1);
@@ -302,14 +317,35 @@ else
 %% If both the descriptor contains boundary large vessels 
 
     if isfield(descriptor_1.record, 'compute_edge') && descriptor_1.record.compute_edge && ...
-            isfield(descriptor_2.record, 'compute_edge') && descriptor_2.record.compute_edge
+            ~isempty(descriptor_1.edge_sub) && isfield(descriptor_2.record, 'compute_edge') &&...
+            descriptor_2.record.compute_edge && ~isempty(descriptor_2.edge_sub)
         desc1_edge = descriptor_1.edge_sub;
         desc2_edge = descriptor_2.edge_sub;
         desc1_edge = cat(2, correctTiles(desc1_edge, tile_size_xyz), descriptor_1.edge_gradient);
         desc2_edge = cat(2, correctTiles(desc2_edge, tile_size_xyz), descriptor_2.edge_gradient);
 %         disp('Vessel edge CPD');
 %         tic
-        [X_edge, Y_edge, rate_edge, pixshift_edge] = fun_searchpair_vessel_edges(desc1_edge, desc2_edge, pixshift_0_edge);
+        try
+            [X_edge, Y_edge, rate_edge, pixshift_edge] = fun_searchpair_vessel_edges(desc1_edge, desc2_edge, pixshift_0_edge);
+        catch ME
+            if (strcmp(ME.identifier, 'MATLAB:array:SizeLimitExceeded'))
+                % Probably empty tile.              
+                X_edge = [];
+                Y_edge = [];
+                rate_edge = [];
+                pixshift_edge = [];
+            elseif (strcmp(ME.identifier, 'MATLAB:nomen'))
+                % Out of memory error. Should not happen for normal
+                % tile...since the edge voxels have readly been merged
+                % before pwdist2
+                X_edge = [];
+                Y_edge = [];
+                rate_edge = [];
+                pixshift_edge = [];                
+            else
+                rethrow(ME);
+            end
+        end
 %         toc
         if ~isempty(X_edge)
             X_edge = correctTiles(X_edge, tile_size_xyz);
@@ -327,6 +363,8 @@ end
 %% Downsampling
 paireddescriptor.X = cat(1, paireddescriptor.X_skl, paireddescriptor.X_edge);
 paireddescriptor.Y = cat(1, paireddescriptor.Y_skl, paireddescriptor.Y_edge);
+% Treat this output as raw data. Do the downsampling later, do not throw
+% information at this stage. 
 % downsample_Q = true;
 % if downsample_Q && ~isempty(paireddescriptor.X)
 %     sample_block_scale = 20;
@@ -340,6 +378,7 @@ if nargin>4
     if ~isfolder(outfold)
 %         warning('Output folder does not exist. Create folder');
         mkdir(outfold);
+        unix(sprintf('chmod g+rw %s',outfold));
     end
     if ~isempty(X_skel)
         %x:R, y:G, z:B

@@ -56,16 +56,23 @@ disp('Finish computing descriptor');
 % [~] = pointmatch_vessel(tile_descriptor_fp_1, tile_descriptor_fp_2, tile_acqusition_fd_1, tile_acqusition_fd_2, ...
 %     output_image_folder,pixshift, descriptor_channel);
 %% Input for pointmatch_task_local_vessel
+clc;clear
 runlocal = true;
-brain = '06_19_58_cube';
-inputfolder = raw_data_folder;
-experimentfolder = dataset_folder;
-descriptorfolder = descriptor_folder;
+brain = '2018-08-15';
+% inputfolder is for getting the scope location 
+inputfolder = '/groups/mousebrainmicro/mousebrainmicro/data/acquisition/2018-08-15';
+% Experiment folder is for writing the control points, matfiles
+experimentfolder = sprintf('/nrs/mouselight/cluster/classifierOutputs/%s_xj_wholebrain', brain);
+% Pipeline output folder
+pipelineoutputfolder = '/nrs/mouselight/pipeline_output/2018-08-15_pipeline_test';
+descriptorfolder = fullfile(pipelineoutputfolder, 'stage_2_descriptor_output');
+matchfolder = fullfile(pipelineoutputfolder, 'stage_3_point_match_output');
+
 matfolder = fullfile(experimentfolder,'matfiles/');
 scopefile = fullfile(matfolder,'scopeloc.mat');
 directions = 'Z';
 ch = '0';
-matchfolder = fullfile(experimentfolder, 'stage_3_point_match_output');
+
 %% Input for pipeline-stitching main.m
 clc;clear;
 runlocal = true;

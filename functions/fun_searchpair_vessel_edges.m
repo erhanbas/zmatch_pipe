@@ -32,6 +32,7 @@ X_stable = [];
 Y_stable = [];
 rate = 0;
 max_edge_voxel_point = 2e4;
+max_edge_voxel_for_neighbor_search = 3 * max_edge_voxel_point;
 % pixshift = [20, 0, 143];
 pixshift =  pixshiftinit;
 [~, iadj] = max(pixshiftinit);
@@ -81,19 +82,34 @@ desc_2_ds = fun_stitching_merge_surface_voxels(desc_2_ds, merge_box_size);
 %% Descriptor pair selection: 
 % The distance between two point set (after shifted by initial estimation)
 % should not be too large
-tmp_pdist = pdist2(desc_1_ds(:,1), desc_2_ds(:,1));
+% Limit the number of voxels before pdist2 to 3 * max_edge_voxel_point
+
+if isempty(desc_1_ds) || isempty(desc_2_ds)
+    return;
+else
+    if size(desc_1_ds, 1) > max_edge_voxel_for_neighbor_search
+        % Further select voxels with large gradients
+        [~, desc_1_idx] = sort(desc_1_ds(:, 4), 'descend');
+        desc_1_ds = desc_1_ds(desc_1_idx(1:max_edge_voxel_for_neighbor_search), :);
+    end
+    if size(desc_2_ds, 1) > max_edge_voxel_for_neighbor_search
+        [~, desc_2_idx] = sort(desc_2_ds(:, 4), 'descend');
+        desc_2_ds = desc_2_ds(desc_2_idx(1:max_edge_voxel_for_neighbor_search), :);
+    end
+end  
+tmp_pdist = pdist2(single(desc_1_ds(:,1)), single(desc_2_ds(:,1)));
 %     tmp_pdist3 = (tmp_pdist.^2) ./3;
 tmp_pdist_reasonable = tmp_pdist < max_disp_pixel_yxz(1);
-tmp_pdist = pdist2(desc_1_ds(:,2), desc_2_ds(:,2));
+tmp_pdist = pdist2(single(desc_1_ds(:,2)), single(desc_2_ds(:,2)));
 %     tmp_pdist3 = tmp_pdist3 + (tmp_pdist.^2) ./3;
 tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(2);
-tmp_pdist = pdist2(desc_1_ds(:,3), desc_2_ds(:,3));
+tmp_pdist = pdist2(single(desc_1_ds(:,3)), single(desc_2_ds(:,3)));
 %     tmp_pdist3 = sqrt(tmp_pdist3 + (tmp_pdist.^2));
 tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(3);
-clear tmp_pdist
+clearvars tmp_pdist
 desc_1_close_neighbor_Q = any(tmp_pdist_reasonable, 2);
 desc_2_close_neighbor_Q = any(tmp_pdist_reasonable, 1)';
-clear tmp_pdist_reasonable
+clearvars tmp_pdist_reasonable
 desc_1_ds = desc_1_ds(desc_1_close_neighbor_Q, :);
 desc_2_ds = desc_2_ds(desc_2_close_neighbor_Q, :);
 
@@ -113,7 +129,10 @@ else
     else
         desc_2_ds = desc_2_ds(:, 1:3);
     end
-end    
+end  
+if size(desc_1_ds, 1) == 1 || size(desc_2_ds, 1) == 1
+    return;
+end
 %% Point cloud registration 
 % The purpose of point cloud registration is to find the correspondance.
 % Will it be better to use affine transformation for the x-y matching? 

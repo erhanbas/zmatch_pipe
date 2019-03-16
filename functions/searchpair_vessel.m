@@ -28,7 +28,7 @@ if isfield(matchparams, 'max_num_desc')
 else
     total_num_descriptor = 5000;
 end
-
+total_num_descriptor_neighbor_search = sqrt(100 * 1024 * 1024 * 1024 / 4);
 if ~isfield(matchparams, 'viz')
     vis_Q = false;
 else
@@ -90,18 +90,22 @@ while ~flag_stop && iter <= num_search_option% run a search
     %     if isfield(matchparams, 'selected_close_descriptor_pair_Q')
 %         if matchparams.selected_close_descriptor_pair_Q
             % Delete voxels far from any all the voxels in the other voxel list
-    tmp_pdist = pdist2(des_1_sub(:,1), des_2_sub_shift(:,1));
+    if numel(des_1_label) > total_num_descriptor_neighbor_search || ...
+            numel(des_2_label) > total_num_descriptor_neighbor_search
+        error('The neighbor searching require more than 100GB of memory. Terminated');
+    end     
+    tmp_pdist = pdist2(single(des_1_sub(:,1)), single(des_2_sub_shift(:,1)));
 %     tmp_pdist3 = (tmp_pdist.^2) ./3;
     tmp_pdist_reasonable = tmp_pdist < max_disp_pixel_yxz(1);
-    tmp_pdist = pdist2(des_1_sub(:,2), des_2_sub_shift(:,2));
+    tmp_pdist = pdist2(single(des_1_sub(:,2)), single(des_2_sub_shift(:,2)));
 %     tmp_pdist3 = tmp_pdist3 + (tmp_pdist.^2) ./3;
     tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(2);
-    tmp_pdist = pdist2(des_1_sub(:,3), des_2_sub_shift(:,3));
+    tmp_pdist = pdist2(single(des_1_sub(:,3)), single(des_2_sub_shift(:,3)));
 %     tmp_pdist3 = sqrt(tmp_pdist3 + (tmp_pdist.^2));
     tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(3);
     desc_1_close_neighbor_Q = any(tmp_pdist_reasonable, 2);
     desc_2_close_neighbor_Q = any(tmp_pdist_reasonable, 1)';
-    clear tmp_pdist tmp_pdist_reasonable
+    clearvars tmp_pdist tmp_pdist_reasonable
     des_1_sub = des_1_sub(desc_1_close_neighbor_Q, :);
     des_2_sub_shift = des_2_sub_shift(desc_2_close_neighbor_Q, :);
     des_1_label = des_1_label(desc_1_close_neighbor_Q,:);
@@ -274,7 +278,7 @@ while ~flag_stop && iter <= num_search_option% run a search
         disp_kept = all(bsxfun(@le, abs(disp_X_Y_dev), disp_X_Y_tol), 2);
         X_ = X_(disp_kept, :);
         Y_ = Y_(disp_kept, :); 
-        if ~isempty(X_) && size(X_,1) > 50
+        if ~isempty(X_) && size(X_,1) > 50 %&& search_by_brute_force_Q
             search_by_brute_force_Q = false;
         else 
             search_by_brute_force_Q = true;
@@ -339,6 +343,10 @@ while ~flag_stop && iter <= num_search_option% run a search
                     Y_0 = Y_;
                     pixshift = disp_X_Y_med;
                 else
+                    if iter == 2
+                       X_1 = X_;
+                       Y_1 = Y_;                        
+                    end                    
                     if R_matched(iter) > R_matched(iter-1)
                         X_0 = X_;
                         Y_0 = Y_;
