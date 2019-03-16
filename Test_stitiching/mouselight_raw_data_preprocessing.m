@@ -4,7 +4,7 @@ raw_data_root = '/groups/mousebrainmicro/mousebrainmicro/data/acquisition/2018-0
 raw_data_info = dir(fullfile(raw_data_root, '**/*.0.tif'));
 % Test if the fov_x_size_um and x_size_um are redundant 
 tic
-parfor tile_idx = 1 : numel(raw_data_info)
+for tile_idx = 1 : numel(raw_data_info)
     tmp_stage_info = fun_io_load_microscope_info(raw_data_info(tile_idx).folder);
     tmp_field_name  = fieldnames(tmp_stage_info);
     for field_idx = 1 : numel(tmp_field_name)
@@ -38,13 +38,11 @@ raw_data_grid.stage_xyz_um = zeros([3, grid_size]);
 raw_data_grid.grid_size = grid_size;
 raw_data_grid.num_tile = num_file;
 raw_data_grid.image_filepath_array = cell(raw_data_grid.grid_size);
-
 for tile_idx = 1 : num_file
     if ~grid_imaged_linear_idx(grid_sub(1,tile_idx), grid_sub(2, tile_idx), grid_sub(3, tile_idx))
-        
         grid_imaged_linear_idx(grid_sub(1,tile_idx), grid_sub(2, tile_idx), grid_sub(3, tile_idx)) = tile_idx;
-        raw_data_grid.image_filepath_array{grid_sub(1,tile_idx), grid_sub(2, tile_idx), grid_sub(3, tile_idx)} = fullfile(raw_data_info(tile_idx).folder, ...
-            raw_data_info(tile_idx).name);
+        tmp_file_name = fullfile(raw_data_info(tile_idx).folder, raw_data_info(tile_idx).name);
+        raw_data_grid.image_filepath_array{grid_sub(1,tile_idx), grid_sub(2, tile_idx), grid_sub(3, tile_idx)} = tmp_file_name ;
         raw_data_grid.stage_xyz_um(:, grid_sub(1,tile_idx), grid_sub(2, tile_idx), grid_sub(3, tile_idx)) = [stage_x_um(tile_idx),...
             stage_y_um(tile_idx), stage_z_um(tile_idx)];
     else
@@ -56,13 +54,14 @@ raw_data_grid.grid_pos_ind = find(raw_data_grid.linear_idx_array>0);
 raw_data_grid.grid_pos_sub = fun_ind2sub(grid_size, raw_data_grid.grid_pos_ind);
 raw_data_grid.image_filepath = raw_data_grid.image_filepath_array(raw_data_grid.grid_pos_ind);
 
-raw_data_grid.image_filepath_array(raw_data_grid.grid_pos_ind) = raw_data_grid.image_filepath;
+% raw_data_grid.image_filepath_array(raw_data_grid.grid_pos_ind) = raw_data_grid.image_filepath;
 raw_data_grid.FOV_size_um = [raw_data_info(1).fov_y_size_um, raw_data_info(1).fov_x_size_um, 251];
 raw_data_grid.block_size = [1536, 1024, 251];
 raw_data_grid.voxel_size = raw_data_grid.FOV_size_um ./ raw_data_grid.block_size;
 raw_data_grid.overlap_size_um = [raw_data_info(1).fov_y_overlap_um, ...
     raw_data_info(1).fov_x_overlap_um, raw_data_info(1).fov_z_overlap_um];
 raw_data_grid.overlap_size = round(raw_data_grid.overlap_size_um ./ raw_data_grid.voxel_size);
+raw_data_grid.stage_grid_xyz = [grid_sub_2; grid_sub_1; grid_sub_3]';
 save('/groups/mousebrainmicro/home/jix/Documents/GitHub/pipeline-featmatch/Test_stitiching/mouselight_1_raw_data_info.mat', '-struct', 'raw_data_grid');
 %% Determine region of interest for testing stitching algorithm
 % Region with both large vessels and capillaries: 
