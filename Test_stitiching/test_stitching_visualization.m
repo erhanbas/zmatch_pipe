@@ -112,13 +112,15 @@ zlabel('Z');
 % zlabel('Z');
 %%
 figure;
+subplot(1,2,1)
 scatter3(desc1_skel(:,1), desc1_skel(:,2), desc1_skel(:,3))
-hold on 
+% hold on 
+subplot(1,2,2)
 scatter3(desc2_skel(:,1), desc2_skel(:,2), desc2_skel(:,3))
-legend('Tile 1', 'Tile 2');
-xlabel('X');
-ylabel('Y');
-zlabel('Z');
+% legend('Tile 1', 'Tile 2');
+% xlabel('X');
+% ylabel('Y');
+% zlabel('Z');
 % view(2)
 %%
 figure;
