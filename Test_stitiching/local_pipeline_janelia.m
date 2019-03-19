@@ -30,11 +30,11 @@ compute_tile_idx = find(raw_data_grid.stage_grid_xyz(:,3) >= 1540 & ...
     raw_data_grid.stage_grid_xyz(:,3) <= 1544);
 num_file = numel(compute_tile_idx);
 
-num_core = feature('numcores');
-poolobj = gcp('nocreate');
-delete(poolobj);
-parpool(num_core);
-parfor file_idx = 1 : num_file
+% num_core = feature('numcores');
+% poolobj = gcp('nocreate');
+% delete(poolobj);
+% parpool(num_core);
+for file_idx = 1 : num_file
     tmp_tile_idx = compute_tile_idx(file_idx);
     raw_image_fp = raw_data_grid.image_filepath{tmp_tile_idx};
     % Convert to line fix data
@@ -58,14 +58,14 @@ disp('Finish computing descriptor');
 match_z_idx = find(scopeloc.gridix(:,3) >= 1540 & ...
     scopeloc.gridix(:,3) <= 1544);
 num_z_match_tile = numel(match_z_idx);
-num_core = feature('numcores');
-poolobj = gcp('nocreate');
-delete(poolobj);
-parpool(round(num_core * 1));
+% num_core = feature('numcores');
+% poolobj = gcp('nocreate');
+% delete(poolobj);
+% parpool(round(num_core * 1));
 directions = 'Z';
 ch = {'0'};
 maxnumofdesc = 1e4;
-parfor iter_tile = 1 : num_z_match_tile
+for iter_tile = 1 : num_z_match_tile
     fprintf('Processing tile %d/%d\n', iter_tile, num_z_match_tile);
     tmp_tile_idx = match_z_idx(iter_tile);
 %     tmp_tile_idx = test_grid_idx;
@@ -95,3 +95,4 @@ parfor iter_tile = 1 : num_z_match_tile
 %     parfor_progress;
 end
 disp('Finished Z-matching');
+%% Debug

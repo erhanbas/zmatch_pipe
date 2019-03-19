@@ -20,7 +20,7 @@ function varargout = pointmatch_vessel(tile1,tile2,acqusitionfolder1,acqusitionf
 % Modified from Erhan Bas's pointmatch by Xiang Ji (xiangji.ucsd@gmail.com)
 % Date: Dec 14, 2018
 
-debug_mode = false;
+debug_mode = true;
 overwrite_existing_matching = false;
 % dbstop if error
 %% Complied file setting
