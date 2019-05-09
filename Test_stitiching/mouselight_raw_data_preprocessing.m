@@ -1,14 +1,24 @@
-raw_data_root = '/groups/mousebrainmicro/mousebrainmicro/data/acquisition/2018-08-15';
+% raw_data_root = '/groups/mousebrainmicro/mousebrainmicro/data/acquisition/2019-01-24';
+raw_data_root = '/nrs/mouselight/pipeline_output/2019-01-24/stage_1_line_fix_output';
+dataset_name = 'mouselight_2';
+channel = 1; 
+tmp_filename = sprintf('%s_ch_%d_line_fix_data_info.mat', dataset_name, channel);
 % raw_data_root = '/nfs/birdstore-brainbucket2/Vessel/WholeBrain/mouselight_1/Raw_Green';
 % Gather raw images file paths
-raw_data_info = dir(fullfile(raw_data_root, '**/*.0.tif'));
+raw_data_info = dir(fullfile(raw_data_root, sprintf('**/*.%d.tif', channel)));
 % Test if the fov_x_size_um and x_size_um are redundant 
 tic
 for tile_idx = 1 : numel(raw_data_info)
-    tmp_stage_info = fun_io_load_microscope_info(raw_data_info(tile_idx).folder);
-    tmp_field_name  = fieldnames(tmp_stage_info);
-    for field_idx = 1 : numel(tmp_field_name)
-        raw_data_info(tile_idx).(strip(tmp_field_name{field_idx})) = tmp_stage_info.(tmp_field_name{field_idx});
+    try
+        tmp_stage_info = fun_io_load_microscope_info(raw_data_info(tile_idx).folder);
+        tmp_field_name  = fieldnames(tmp_stage_info);
+        for field_idx = 1 : numel(tmp_field_name)
+            raw_data_info(tile_idx).(strip(tmp_field_name{field_idx})) = tmp_stage_info.(tmp_field_name{field_idx});
+        end
+    catch ME
+        warning('Fail to read microscope information from folder %s', raw_data_info(tile_idx).folder);
+        fprintf('Error message is %s\n', ME.identifier);
+        continue;
     end
 end
 toc
@@ -22,6 +32,9 @@ raw_data_info = raw_data_info(~is_duplicate_file_Q);
 num_file = numel(raw_data_info);
 %% Determine the grid position of the valid tile
 raw_data_grid = struct;
+% stage_x_grid = [raw_data_info.x];
+% stage_y_grid = [raw_data_info.y];
+% stage_z_grid = [raw_data_info.z];
 grid_sub_1 = [raw_data_info.y];
 grid_sub_2 = [raw_data_info.x];
 grid_sub_3 = [raw_data_info.z];
@@ -34,7 +47,7 @@ grid_size = grid_sub_max - grid_origin + 1;
 grid_sub = bsxfun(@minus, [grid_sub_1;grid_sub_2;grid_sub_3], grid_origin') + 1;
 
 grid_imaged_linear_idx = zeros(grid_size);
-raw_data_grid.stage_xyz_um = zeros([3, grid_size]);
+raw_data_grid.stage_yzx_um = zeros([3, grid_size]);
 raw_data_grid.grid_size = grid_size;
 raw_data_grid.num_tile = num_file;
 raw_data_grid.image_filepath_array = cell(raw_data_grid.grid_size);
@@ -43,15 +56,16 @@ for tile_idx = 1 : num_file
         grid_imaged_linear_idx(grid_sub(1,tile_idx), grid_sub(2, tile_idx), grid_sub(3, tile_idx)) = tile_idx;
         tmp_file_name = fullfile(raw_data_info(tile_idx).folder, raw_data_info(tile_idx).name);
         raw_data_grid.image_filepath_array{grid_sub(1,tile_idx), grid_sub(2, tile_idx), grid_sub(3, tile_idx)} = tmp_file_name ;
-        raw_data_grid.stage_xyz_um(:, grid_sub(1,tile_idx), grid_sub(2, tile_idx), grid_sub(3, tile_idx)) = [stage_x_um(tile_idx),...
-            stage_y_um(tile_idx), stage_z_um(tile_idx)];
+        raw_data_grid.stage_yzx_um(:, grid_sub(1,tile_idx), grid_sub(2, tile_idx), grid_sub(3, tile_idx)) = [stage_y_um(tile_idx),...
+            stage_x_um(tile_idx), stage_z_um(tile_idx)];
     else
         error('Duplicated tile grid coordinate');
     end
 end
 raw_data_grid.linear_idx_array = grid_imaged_linear_idx;
-raw_data_grid.grid_pos_ind = find(raw_data_grid.linear_idx_array>0);
-raw_data_grid.grid_pos_sub = fun_ind2sub(grid_size, raw_data_grid.grid_pos_ind);
+raw_data_grid.grid_pos_sub = grid_sub';
+raw_data_grid.grid_pos_ind = sub2ind(grid_size, raw_data_grid.grid_pos_sub(:, 1), ...
+    raw_data_grid.grid_pos_sub(:, 2), raw_data_grid.grid_pos_sub(:, 3));
 raw_data_grid.image_filepath = raw_data_grid.image_filepath_array(raw_data_grid.grid_pos_ind);
 
 % raw_data_grid.image_filepath_array(raw_data_grid.grid_pos_ind) = raw_data_grid.image_filepath;
@@ -61,8 +75,9 @@ raw_data_grid.voxel_size = raw_data_grid.FOV_size_um ./ raw_data_grid.block_size
 raw_data_grid.overlap_size_um = [raw_data_info(1).fov_y_overlap_um, ...
     raw_data_info(1).fov_x_overlap_um, raw_data_info(1).fov_z_overlap_um];
 raw_data_grid.overlap_size = round(raw_data_grid.overlap_size_um ./ raw_data_grid.voxel_size);
+
 raw_data_grid.stage_grid_xyz = [grid_sub_2; grid_sub_1; grid_sub_3]';
-save('/groups/mousebrainmicro/home/jix/Documents/GitHub/pipeline-featmatch/Test_stitiching/mouselight_1_raw_data_info.mat', '-struct', 'raw_data_grid');
+save(fullfile('/groups/mousebrainmicro/home/jix/Documents/GitHub/pipeline-featmatch/Test_stitiching', tmp_filename), '-struct', 'raw_data_grid');
 %% Determine region of interest for testing stitching algorithm
 % Region with both large vessels and capillaries: 
 clc;clear;

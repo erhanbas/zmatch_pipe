@@ -4,6 +4,17 @@ vis_mask(skel) = 3;
 vis_mask(kept_skl_ind) = 2;
 
 DataManager.visualize_itksnap(Io, vis_mask)
+%% 2D
+sec_Q_1 = des_1_sub(:, 3) > 200 & des_1_sub(:, 3) < 250;
+sec_Q_2 = des_2_sub_shift(:, 3) > 200 & des_2_sub_shift(:, 3) < 250;
+plot_sub_1 = des_1_sub(sec_Q_1, 1:2);
+plot_sub_2 = des_2_sub_shift(sec_Q_2, 1:2);
+figure;
+scatter(plot_sub_1(:, 1), plot_sub_1(:, 2));
+hold on
+scatter(plot_sub_2(:, 1), plot_sub_2(:, 2));
+daspect([1,1,1]);
+grid on
 %% Matched skeleton voxels
 figure;
 scatter3(X_skel(:,1), X_skel(:,2), X_skel(:,3))
@@ -63,6 +74,7 @@ figure;
 scatter3(des_1_sub(:,1), des_1_sub(:,2), des_1_sub(:,3))
 hold on 
 scatter3(des_2_sub_shift(:,1), des_2_sub_shift(:,2), des_2_sub_shift(:,3))
+legend('1', '2');
 %% Edge downsampled shifted
 figure;
 scatter3(desc_1_sub_ds(:,1), desc_1_sub_ds(:,2), desc_1_sub_ds(:,3))
@@ -111,12 +123,14 @@ zlabel('Z');
 % ylabel('Y');
 % zlabel('Z');
 %%
+tmp_1_Q = desc1_skel(:, 3) > 150;
+tmp_2_Q = desc2_skel(:, 3) < 100;
 figure;
 subplot(1,2,1)
-scatter3(desc1_skel(:,1), desc1_skel(:,2), desc1_skel(:,3))
+scatter3(desc1_skel(tmp_1_Q,1), desc1_skel(tmp_1_Q,2), desc1_skel(tmp_1_Q,3))
 % hold on 
 subplot(1,2,2)
-scatter3(desc2_skel(:,1), desc2_skel(:,2), desc2_skel(:,3))
+scatter3(desc2_skel(tmp_2_Q,1), desc2_skel(tmp_2_Q,2), desc2_skel(tmp_2_Q,3))
 % legend('Tile 1', 'Tile 2');
 % xlabel('X');
 % ylabel('Y');
@@ -325,3 +339,7 @@ for iter_vis = 202 : numel(paireddescriptor{1})
     end
     %%
 end
+%%
+tmp_sub = descriptor_str.skl_sub;
+figure;
+scatter3(tmp_sub(:, 2), tmp_sub(:, 1), tmp_sub(:, 3))

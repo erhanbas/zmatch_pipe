@@ -55,19 +55,19 @@ if nargin<5
     outfold = tile1;
     pixshift = '[0 0 0]';
     ch='1';
-    maxnumofdesc=5e3;
+    maxnumofdesc = 1e4;
     exitcode = 0;
 elseif nargin < 6
     pixshift = '[0 0 0]';
     ch='1';
-    maxnumofdesc=5e3;
+    maxnumofdesc = 1e4;
     exitcode = 0;
 elseif nargin <7
     ch='1';
-    maxnumofdesc=5e3;
+    maxnumofdesc = 1e4;
     exitcode = 0;
 elseif nargin <8
-    maxnumofdesc=5e3;
+    maxnumofdesc = 1e4;
     exitcode = 0;
 elseif nargin <9
     exitcode = 0;
@@ -128,9 +128,11 @@ paireddescriptor = struct;
 paireddescriptor.pixshift_stage = pixshift;
 [paireddescriptor.exist_blv, paireddescriptor.matchrate_edge, ...
     paireddescriptor.X_edge, paireddescriptor.Y_edge, ...
+    paireddescriptor.X_edge_int, paireddescriptor.Y_edge_int, ...
     paireddescriptor.pixshift_edge, paireddescriptor.pixshift_mask_fft, ...
     paireddescriptor.matchrate_mask_fft, paireddescriptor.pixshift_skl,...
     paireddescriptor.matchrate,paireddescriptor.X_skl, paireddescriptor.Y_skl, ...
+    paireddescriptor.X_skl_int, paireddescriptor.Y_skl_int, ...
     paireddescriptor.uni] = deal([]);
 %%
 % check if input exists
@@ -153,19 +155,25 @@ else
     descriptor_1 = load(tile1);
     descriptor_2 = load(tile2);
 %% for debug - fixing the bug in vessel descriptor, should be removed later
-    if isempty(descriptor_1.record)
-        disp('Missing field: fp_image. Infer image path automatically');
-        descriptor_1.record.fp_image = strrep(strrep(tile1, 'stage_2_descriptor_output', 'raw_data'), 'descriptor.mat', '.tif');
-    end
-    if isempty(descriptor_2.record)
-        disp('Missing field: fp_image. Infer image path automatically');
-        descriptor_2.record.fp_image = strrep(strrep(tile2, 'stage_2_descriptor_output', 'raw_data'), 'descriptor.mat', '.tif');
-    end
+%     if isempty(descriptor_1.record)
+%         disp('Missing field: fp_image. Infer image path automatically');
+%         descriptor_1.record.fp_image = strrep(strrep(tile1, 'stage_2_descriptor_output', 'raw_data'), 'descriptor.mat', '.tif');
+%     end
+%     if isempty(descriptor_2.record)
+%         disp('Missing field: fp_image. Infer image path automatically');
+%         descriptor_2.record.fp_image = strrep(strrep(tile2, 'stage_2_descriptor_output', 'raw_data'), 'descriptor.mat', '.tif');
+%     end
 %% Intensity based masekd fft registration  
 %     disp('Masked FFT translation registration');
 %     tic
 %     [paireddescriptor.pixshift_mask_fft, paireddescriptor.matchrate_mask_fft] = fun_masked_fft_match_vessel(descriptor_1, descriptor_2, pixshift, iadj, debug_mode);
 %     toc
+im_1 = deployedtiffread(descriptor_1.record.fp_image);
+im_1 = flip(flip(im_1, 1), 2);
+im_2 = deployedtiffread(descriptor_2.record.fp_image);
+im_2 = flip(flip(im_2, 1), 2);
+implay(im_1);
+implay(im_2);
 %% Skeleton point registration
     if isfield(descriptor_1, 'skl_sub') && ~isempty(descriptor_1.skl_sub) && isfield(descriptor_2, 'skl_sub') && ~isempty(descriptor_2.skl_sub)
         desc1_skel = cat(2, correctTiles(descriptor_1.skl_sub,tile_size_xyz), descriptor_1.skl_label(:));
@@ -181,9 +189,20 @@ else
         %% MATCHING
 %         disp('Vessel skeleton CPD');
 %         tic
-        [X_skel,Y_skel,rate_, pixshift_skl, nonuniformity] = searchpair_vessel(desc1_skel,desc2_skel,pixshift,iadj,tile_size_xyz,matchparams);
+        [X_skel, Y_skel, rate_, pixshift_skl, nonuniformity] = searchpair_vessel(desc1_skel, desc2_skel,pixshift,iadj,tile_size_xyz,matchparams);
 %         toc        
         if ~isempty(X_skel)
+            [~, ~, matched_idx_1] = intersect(X_skel, desc1_skel(:, 1:3), 'rows', 'stable');
+            if numel(matched_idx_1) ~= size(X_skel, 1)
+                warning('Not all the points in X_skel are in desc1_skel');
+            end
+            paireddescriptor.X_skl_int = descriptor_1.skl_int(matched_idx_1);       
+            
+            [~, ~, matched_idx_2] = intersect(Y_skel, desc2_skel(:, 1:3), 'rows', 'stable');    
+            if numel(matched_idx_2) ~= size(Y_skel, 1)
+                warning('Not all the points in Y_skel are in desc2_skel');
+            end
+            paireddescriptor.Y_skl_int = descriptor_2.skl_int(matched_idx_2);         
             X_skel = correctTiles(X_skel,tile_size_xyz);
             Y_skel = correctTiles(Y_skel,tile_size_xyz);
         end
@@ -235,6 +254,18 @@ else
         end
 %         toc
         if ~isempty(X_edge)
+            [~, ~, matched_idx_1] = intersect(X_edge, desc1_edge(:, 1:3), 'rows', 'stable');
+            if numel(matched_idx_1) ~= size(X_edge, 1)
+                warning('Not all the points in X_edge are in desc1_skel');
+            end
+            paireddescriptor.X_edge_int = descriptor_1.edge_int(matched_idx_1);
+            [~, ~, matched_idx_2] = intersect(Y_edge, desc2_edge(:, 1:3), 'rows', 'stable');
+            if numel(matched_idx_2) ~= size(Y_edge, 1)
+                warning('Not all the points in Y_edge are in desc1_skel');
+            end
+            paireddescriptor.Y_edge_int = descriptor_2.edge_int(matched_idx_2);
+            
+            
             X_edge = correctTiles(X_edge, tile_size_xyz);
             Y_edge = correctTiles(Y_edge, tile_size_xyz);
         end
@@ -251,7 +282,7 @@ end
 paireddescriptor.X = cat(1, paireddescriptor.X_skl, paireddescriptor.X_edge);
 paireddescriptor.Y = cat(1, paireddescriptor.Y_skl, paireddescriptor.Y_edge);
 % Treat this output as raw data. Do the downsampling later, do not throw
-% information at this stage. 
+% out any information at this stage. 
 % downsample_Q = true;
 % if downsample_Q && ~isempty(paireddescriptor.X)
 %     sample_block_scale = 20;

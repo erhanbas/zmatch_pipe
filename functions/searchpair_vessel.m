@@ -49,7 +49,7 @@ switch iadj
     case 2
         max_disp_pixel_yxz = [10, 15, 5];
     case 3
-        max_disp_pixel_yxz = [30, 30, 30]; % I am not sure if these numbers are good 
+        max_disp_pixel_yxz = [70, 70, 45]; % I am not sure if these numbers are good 
 end
 
 R_consistant = zeros(1,50);
@@ -90,26 +90,26 @@ while ~flag_stop && iter <= num_search_option% run a search
     %     if isfield(matchparams, 'selected_close_descriptor_pair_Q')
 %         if matchparams.selected_close_descriptor_pair_Q
             % Delete voxels far from any all the voxels in the other voxel list
-    if numel(des_1_label) > total_num_descriptor_neighbor_search || ...
-            numel(des_2_label) > total_num_descriptor_neighbor_search
-        error('The neighbor searching require more than 100GB of memory. Terminated');
-    end     
-    tmp_pdist = pdist2(single(des_1_sub(:,1)), single(des_2_sub_shift(:,1)));
-%     tmp_pdist3 = (tmp_pdist.^2) ./3;
-    tmp_pdist_reasonable = tmp_pdist < max_disp_pixel_yxz(1);
-    tmp_pdist = pdist2(single(des_1_sub(:,2)), single(des_2_sub_shift(:,2)));
-%     tmp_pdist3 = tmp_pdist3 + (tmp_pdist.^2) ./3;
-    tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(2);
-    tmp_pdist = pdist2(single(des_1_sub(:,3)), single(des_2_sub_shift(:,3)));
-%     tmp_pdist3 = sqrt(tmp_pdist3 + (tmp_pdist.^2));
-    tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(3);
-    desc_1_close_neighbor_Q = any(tmp_pdist_reasonable, 2);
-    desc_2_close_neighbor_Q = any(tmp_pdist_reasonable, 1)';
-    clearvars tmp_pdist tmp_pdist_reasonable
-    des_1_sub = des_1_sub(desc_1_close_neighbor_Q, :);
-    des_2_sub_shift = des_2_sub_shift(desc_2_close_neighbor_Q, :);
-    des_1_label = des_1_label(desc_1_close_neighbor_Q,:);
-    des_2_label = des_2_label(desc_2_close_neighbor_Q,:);
+%     if numel(des_1_label) > total_num_descriptor_neighbor_search || ...
+%             numel(des_2_label) > total_num_descriptor_neighbor_search
+%         error('The neighbor searching require more than 100GB of memory. Terminated');
+%     end     
+%     tmp_pdist = pdist2(single(des_1_sub(:,1)), single(des_2_sub_shift(:,1)));
+% %     tmp_pdist3 = (tmp_pdist.^2) ./3;
+%     tmp_pdist_reasonable = tmp_pdist < max_disp_pixel_yxz(1);
+%     tmp_pdist = pdist2(single(des_1_sub(:,2)), single(des_2_sub_shift(:,2)));
+% %     tmp_pdist3 = tmp_pdist3 + (tmp_pdist.^2) ./3;
+%     tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(2);
+%     tmp_pdist = pdist2(single(des_1_sub(:,3)), single(des_2_sub_shift(:,3)));
+% %     tmp_pdist3 = sqrt(tmp_pdist3 + (tmp_pdist.^2));
+%     tmp_pdist_reasonable = tmp_pdist_reasonable & tmp_pdist < max_disp_pixel_yxz(3);
+%     desc_1_close_neighbor_Q = any(tmp_pdist_reasonable, 2);
+%     desc_2_close_neighbor_Q = any(tmp_pdist_reasonable, 1)';
+%     clearvars tmp_pdist tmp_pdist_reasonable
+%     des_1_sub = des_1_sub(desc_1_close_neighbor_Q, :);
+%     des_2_sub_shift = des_2_sub_shift(desc_2_close_neighbor_Q, :);
+%     des_1_label = des_1_label(desc_1_close_neighbor_Q,:);
+%     des_2_label = des_2_label(desc_2_close_neighbor_Q,:);
     % Nearest neighbor distance
     % Nearest neighbor idx
     % Remove far apart voxels
@@ -386,7 +386,7 @@ end
 
 end
 %% Subfunctions
-function [rate,X_,Y_,tY_] = descriptorMatchforz(X,Y,pixshift,iadj,params)
+function [rate, X_, Y_, tY_] = descriptorMatchforz(X,Y,pixshift,iadj,params)
 %DESCRIPTORMATCH Summary of this function goes here
 %
 % [OUTPUTARGS] = DESCRIPTORMATCH(INPUTARGS) Explain usage here
