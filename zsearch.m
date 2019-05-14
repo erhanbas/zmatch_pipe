@@ -38,7 +38,7 @@ outfile = fullfile(outfolder,sprintf('%05d_%05d-pointmatch',indstart,indend));
 % load descriptor file
 load(descriptorfile,'descriptors')
 % load scopelocation file
-load(scopefile,'scopeloc','imsize_um','experimentfolder','inputfolder')
+load(scopefile, 'scopeloc', 'imsize_um', 'experimentfolder', 'inputfolder')
 % load scopeparams file
 load(scopeparams,'scopeparams')
 [neighbors] = buildNeighbor(scopeloc.gridix(:,1:3)); %[id -x -y +x +y -z +z] format
@@ -49,6 +49,7 @@ paireddescriptor = pointmatch(descriptors,neigs,scopeloc,scopeparams,thr,numcore
 
 save(outfile,'paireddescriptor')
 end
+%% Sub-function - deployment
 function deployment(brain,tag,runlocal)
 % mcc -m -v -R -singleCompThread /groups/mousebrainmicro/home/base/CODE/MATLAB/pipeline/stitching/zsearch.m -d /groups/mousebrainmicro/home/base/CODE/MATLAB/compiledfunctions/zsearch -a /groups/mousebrainmicro/home/base/CODE/MATLAB/pipeline/stitching/thirdparty/CPD2 /groups/mousebrainmicro/home/base/CODE/MATLAB/pipeline/stitching/functions
 % mcc -m -v -R -I /groups/mousebrainmicro/home/base/CODE/MATLAB/pipeline/stitching/zsearch.m -d /groups/mousebrainmicro/home/base/CODE/MATLAB/compiledfunctions/zsearch -a /groups/mousebrainmicro/home/base/CODE/MATLAB/pipeline/stitching/thirdparty/CPD2/ -a /groups/mousebrainmicro/home/base/CODE/MATLAB/pipeline/stitching/functions
@@ -122,8 +123,8 @@ if ~runlocal
 end
 % zsearch(descriptorfile,scopefile,scopeparams,outfolder,indstart,indend)
 % for ii=1:length(inds)
-thr = .1
-[xshift,yshift,zshift] = deal(0)
+thr = .1;
+[xshift,yshift,zshift] = deal(0);
 
 parfor ii=1:length(inds)-1
     %%

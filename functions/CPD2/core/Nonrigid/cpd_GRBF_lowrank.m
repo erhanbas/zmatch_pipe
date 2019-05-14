@@ -68,7 +68,7 @@ function  [C, W, sigma2, iter, T] =cpd_GRBF_lowrank(X, Y, beta, lambda, max_it, 
 
 T=Y; iter=0;  ntol=tol+10; W=zeros(M,D);
 if ~exist('sigma2','var') || isempty(sigma2) || (sigma2==0), 
-    sigma2=(M*trace(X'*X)+N*trace(Y'*Y)-2*sum(X)*sum(Y)')/(M*N*D);
+    sigma2=(M*trace(X'*X)+N*trace(Y'*Y)-2*sum(X, 1)*sum(Y, 1)')/(M*N*D);
 end
 sigma2_init=sigma2;
 
@@ -92,7 +92,7 @@ while (iter<max_it) && (ntol > tol) && (sigma2 > 1e-8)
     
     L=L+lambda/2*trace(QtW'*S*QtW);
     ntol=abs((L-L_old)/L);
-    disp([' CPD nonrigid ' st ' (lowrank)  : dL= ' num2str(ntol) ', iter= ' num2str(iter) ' sigma2= ' num2str(sigma2)]);
+%     disp([' CPD nonrigid ' st ' (lowrank)  : dL= ' num2str(ntol) ', iter= ' num2str(iter) ' sigma2= ' num2str(sigma2)]);
 
     % M-step. Solve linear system for W.
     dP=spdiags(P1,0,M,M); % precompute diag(P)
@@ -116,7 +116,7 @@ while (iter<max_it) && (ntol > tol) && (sigma2 > 1e-8)
 
 end
 
-disp('CPD registration succesfully completed.');
+% disp('CPD registration succesfully completed.');
 
 %Find the correspondence, such that Y corresponds to X(C,:)
 if corresp, C=cpd_Pcorrespondence(X,T,sigma2save,outliers); else C=0; end;
